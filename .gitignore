@@ -1,0 +1,11 @@
+node_modules/
+.env
+.env.*
+dist/
+backend/data/*.db
+backend/data/*.db-journal
+backend/data/*.db-wal
+backend/data/*.db-shm
+frontend/dist/
+frontend/node_modules/
+backend/node_modules/
