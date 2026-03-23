@@ -1,13 +1,13 @@
-# CommerceSuite
+# NovaTech Supply
 
-CommerceSuite is an enterprise storefront built for internal procurement. It combines a clean catalog experience with secure checkout and admin-ready order oversight.
+NovaTech Supply is an enterprise procurement storefront built for internal hardware and software purchasing. It combines a clean catalog experience with secure checkout and admin-ready order management.
 
 ## Capabilities
 - Secure login with JWT and rate-limited auth
-- Enterprise catalog with inventory visibility
+- Enterprise catalog with real-time inventory visibility
 - Server-side order totals and stock enforcement
 - Admin order management with status tracking
-- Simple, professional UI optimized for procurement teams
+- Responsive, modern UI optimized for procurement teams
 
 ## Technology
 - Frontend: React + Vite

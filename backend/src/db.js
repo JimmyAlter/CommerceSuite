@@ -117,6 +117,69 @@ const seed = () => {
     'active',
     'Software'
   )
+  insertProduct.run(
+    'Vertex Ergonomic Keyboard',
+    'Split-layout mechanical keyboard with programmable keys and wrist rest.',
+    12900,
+    'VTX-KB1',
+    85,
+    'active',
+    'Accessories'
+  )
+  insertProduct.run(
+    'Prism Wireless Mouse',
+    'Precision wireless mouse with 16K DPI sensor and USB-C charging.',
+    6900,
+    'PRM-M01',
+    200,
+    'active',
+    'Accessories'
+  )
+  insertProduct.run(
+    'Beacon USB-C Hub',
+    'Compact 7-in-1 hub with HDMI, Ethernet, and SD card reader.',
+    4900,
+    'BCN-HUB7',
+    310,
+    'active',
+    'Accessories'
+  )
+  insertProduct.run(
+    'Forge SSD 2TB',
+    'NVMe M.2 solid-state drive with hardware encryption and 7000 MB/s reads.',
+    19900,
+    'FRG-SSD2',
+    55,
+    'active',
+    'Hardware'
+  )
+  insertProduct.run(
+    'Meridian Webcam Pro',
+    '4K autofocus webcam with dual microphones and privacy shutter.',
+    14900,
+    'MRD-WC4K',
+    130,
+    'active',
+    'Peripherals'
+  )
+  insertProduct.run(
+    'Pulse Noise-Cancel Headset',
+    'Wireless ANC headset with 40-hour battery and multipoint Bluetooth.',
+    24900,
+    'PLS-ANC1',
+    72,
+    'active',
+    'Peripherals'
+  )
+  insertProduct.run(
+    'CloudVault Backup License',
+    '1-year cloud backup license with 5TB storage and ransomware protection.',
+    3900,
+    'CLV-BK1Y',
+    999,
+    'active',
+    'Software'
+  )
 }
 
 module.exports = {
