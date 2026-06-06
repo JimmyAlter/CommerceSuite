@@ -4,6 +4,7 @@ import { NavLink, FeatureCard } from './components/FeatureCard'
 import { ProductCard } from './components/ProductCard'
 import { LoginModal } from './components/LoginModal'
 import { CheckoutModal } from './components/CheckoutModal'
+import { isDemoMode, mockFetchJson } from './mockApi'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4100'
 
@@ -11,6 +12,9 @@ const formatCurrency = (value) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value / 100)
 
 const fetchJson = async (path, options = {}) => {
+  if (isDemoMode()) {
+    return mockFetchJson(path, options)
+  }
   const response = await fetch(`${API_URL}${path}`, {
     headers: { 'Content-Type': 'application/json', ...options.headers },
     ...options,
@@ -321,6 +325,16 @@ function App() {
       </div>
 
       {/* ── Banners ── */}
+      {isDemoMode() && (
+        <div className="banner info" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '12px 16px', background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.2)', color: '#3b82f6', borderRadius: '6px', margin: '16px auto', maxWidth: '1200px' }}>
+          <span style={{ fontSize: '14px' }}>
+            🌐 <strong>Demo Mode:</strong> Running entirely client-side using LocalStorage database. Any additions/modifications will persist locally in your browser.
+          </span>
+          <button className="btn btn-ghost btn-sm" style={{ border: '1px solid rgba(59, 130, 246, 0.3)', color: '#3b82f6', background: 'transparent', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer' }} onClick={() => { localStorage.clear(); window.location.reload(); }}>
+            Reset Data
+          </button>
+        </div>
+      )}
       {status && <div className="banner success">{status}</div>}
       {error && <div className="banner error">{error}</div>}
       {toast && <div className="toast">{toast}</div>}
