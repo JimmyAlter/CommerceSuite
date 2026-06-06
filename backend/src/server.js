@@ -89,7 +89,7 @@ app.post('/api/auth/login', authLimiter, (req, res) => {
 
 app.get('/api/products', (req, res) => {
   const products = db
-    .prepare('SELECT * FROM products WHERE status = "active" ORDER BY name ASC')
+    .prepare("SELECT * FROM products WHERE status = 'active' ORDER BY name ASC")
     .all()
   res.json(products)
 })
