@@ -39,6 +39,7 @@ function setStorage(key, data) {
 }
 
 export const isDemoMode = () => {
+  if (import.meta.env.VITE_API_URL) return false
   return window.location.hostname.includes('vercel.app') || 
          import.meta.env.VITE_DEMO_MODE === 'true'
 }

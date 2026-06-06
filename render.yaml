@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: commercesuite-backend
+    env: node
+    plan: free
+    buildCommand: npm install --prefix backend
+    startCommand: node backend/src/server.js
+    disk:
+      name: commercesuite-db
+      mountPath: /opt/data
+      sizeGB: 1
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DB_PATH
+        value: /opt/data/commercesuite.db
+      - key: CORS_ORIGIN
+        value: https://commercesuite-demo.vercel.app
