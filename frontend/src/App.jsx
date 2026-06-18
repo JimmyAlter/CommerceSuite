@@ -250,7 +250,19 @@ function App() {
           </nav>
         </div>
         <div className="nav-right">
+          {isDemoMode() ? (
+            <div className="status-chip status-chip--demo" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 8px', borderRadius: '4px', background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.2)', color: '#f59e0b', fontSize: '12px', fontWeight: '500' }}>
+              <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#f59e0b' }} />
+              Demo (Local)
+            </div>
+          ) : (
+            <div className="status-chip status-chip--live" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 8px', borderRadius: '4px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.2)', color: '#10b981', fontSize: '12px', fontWeight: '500' }}>
+              <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981' }} />
+              Live (API)
+            </div>
+          )}
           <button className="btn btn-ghost btn-sm" onClick={openCheckout}>
+
             <Icon d={icons.cart} size={15} />
             Cart{cartCount > 0 && ` (${cartCount})`}
           </button>
