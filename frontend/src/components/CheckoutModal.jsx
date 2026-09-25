@@ -1,18 +1,12 @@
-import React, { useState, useEffect } from 'react'
-import { Icon, icons } from './Icon'
+import React, { useState } from 'react'
+import { Icon } from './Icon'
+import { icons } from './iconPaths'
 
 export const CheckoutModal = ({ open, onClose, cart, onSubmit, busy }) => {
   const [shipping, setShipping] = useState({
     name: '', address: '', city: '', country: '',
   })
   const [paymentMethod, setPaymentMethod] = useState('card')
-
-  useEffect(() => {
-    if (open) {
-      setShipping({ name: '', address: '', city: '', country: '' })
-      setPaymentMethod('card')
-    }
-  }, [open])
 
   if (!open) return null
 

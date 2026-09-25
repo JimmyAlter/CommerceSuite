@@ -65,7 +65,7 @@ export const mockFetchJson = async (path, options = {}) => {
     const token = authHeader.substring(7)
     try {
       currentUser = JSON.parse(atob(token))
-    } catch (e) {
+    } catch {
       throw new Error('Unauthorized')
     }
   }
