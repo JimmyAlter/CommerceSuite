@@ -10,7 +10,30 @@ const { db, init, seed } = require('./db')
 
 const app = express()
 const port = process.env.PORT || 4100
+
+if (process.env.NODE_ENV === 'production' && (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'dev_secret_change_me')) {
+  console.error('CRITICAL ERROR: JWT_SECRET environment variable is missing or insecure in production mode!')
+  process.exit(1)
+}
+
 const jwtSecret = process.env.JWT_SECRET || 'dev_secret_change_me'
+
+const MAX_ORDER_LINES = 50
+const MAX_QUANTITY = 999
+const MAX_TEXT_LENGTH = 200
+const PRODUCT_STATUSES = ['active', 'inactive']
+
+const isPositiveInteger = (value) => Number.isInteger(value) && value > 0
+const isNonNegativeInteger = (value) => Number.isInteger(value) && value >= 0
+const isShortText = (value) => typeof value === 'string' && value.trim() !== '' && value.length <= MAX_TEXT_LENGTH
+
+// Business-rule failures raised inside a transaction; mapped to 4xx responses.
+class OrderError extends Error {
+  constructor(status, message) {
+    super(message)
+    this.status = status
+  }
+}
 
 init()
 seed()
@@ -95,9 +118,21 @@ app.get('/api/products', (req, res) => {
 })
 
 app.post('/api/products', authenticate, requireRole('admin'), (req, res) => {
-  const { name, description, price_cents, sku, inventory, status, category } = req.body || {}
-  if (!name || !description || !price_cents || !sku || !category) {
+  const { name, description, price_cents, sku, inventory = 0, status = 'active', category } = req.body || {}
+  if (![name, sku, category].every(isShortText) || typeof description !== 'string' || !description.trim()) {
     return res.status(400).json({ error: 'Missing required fields' })
+  }
+  if (!isPositiveInteger(price_cents)) {
+    return res.status(400).json({ error: 'price_cents must be a positive integer' })
+  }
+  if (!isNonNegativeInteger(inventory)) {
+    return res.status(400).json({ error: 'inventory must be a non-negative integer' })
+  }
+  if (!PRODUCT_STATUSES.includes(status)) {
+    return res.status(400).json({ error: `status must be one of: ${PRODUCT_STATUSES.join(', ')}` })
+  }
+  if (db.prepare('SELECT 1 FROM products WHERE sku = ?').get(sku)) {
+    return res.status(409).json({ error: 'A product with this SKU already exists' })
   }
 
   const stmt = db.prepare(
@@ -105,15 +140,7 @@ app.post('/api/products', authenticate, requireRole('admin'), (req, res) => {
      VALUES (?, ?, ?, ?, ?, ?, ?)`
   )
 
-  const info = stmt.run(
-    name,
-    description,
-    price_cents,
-    sku,
-    inventory ?? 0,
-    status || 'active',
-    category
-  )
+  const info = stmt.run(name, description, price_cents, sku, inventory, status, category)
 
   const product = db.prepare('SELECT * FROM products WHERE id = ?').get(info.lastInsertRowid)
   res.status(201).json(product)
@@ -124,7 +151,18 @@ app.post('/api/orders', authenticate, (req, res) => {
   if (!Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ error: 'Items are required' })
   }
-  if (!shipping?.name || !shipping?.address || !shipping?.city || !shipping?.country) {
+  if (items.length > MAX_ORDER_LINES) {
+    return res.status(400).json({ error: `An order can have at most ${MAX_ORDER_LINES} lines` })
+  }
+  for (const item of items) {
+    if (!isPositiveInteger(item?.product_id)) {
+      return res.status(400).json({ error: 'Invalid product' })
+    }
+    if (!isPositiveInteger(item.quantity) || item.quantity > MAX_QUANTITY) {
+      return res.status(400).json({ error: `Quantity must be a whole number between 1 and ${MAX_QUANTITY}` })
+    }
+  }
+  if (![shipping?.name, shipping?.address, shipping?.city, shipping?.country].every(isShortText)) {
     return res.status(400).json({ error: 'Shipping details are required' })
   }
   const allowedMethods = ['card', 'invoice', 'wire']
@@ -146,7 +184,7 @@ app.post('/api/orders', authenticate, (req, res) => {
 
   const getProduct = db.prepare('SELECT id, name, price_cents, inventory FROM products WHERE id = ?')
 
-  const transaction = db.transaction(() => {
+  const placeOrder = db.transaction(() => {
     const info = insertOrder.run(
       orderNumber,
       req.user.sub,
@@ -160,11 +198,10 @@ app.post('/api/orders', authenticate, (req, res) => {
     )
     const orderId = info.lastInsertRowid
 
-    items.forEach((item) => {
-      const product = getProduct.get(item.product_id)
-      if (!product) throw new Error('Invalid product')
-      const quantity = Math.max(1, Number(item.quantity || 1))
-      if (product.inventory < quantity) throw new Error('Insufficient inventory')
+    items.forEach(({ product_id, quantity }) => {
+      const product = getProduct.get(product_id)
+      if (!product) throw new OrderError(400, 'Invalid product')
+      if (product.inventory < quantity) throw new OrderError(409, `Insufficient inventory for ${product.name}`)
       totalCents += product.price_cents * quantity
       insertItem.run(orderId, product.id, product.name, quantity, product.price_cents)
       db.prepare('UPDATE products SET inventory = inventory - ? WHERE id = ?').run(quantity, product.id)
@@ -172,9 +209,17 @@ app.post('/api/orders', authenticate, (req, res) => {
 
     db.prepare('UPDATE orders SET total_cents = ? WHERE id = ?').run(totalCents, orderId)
     return orderId
-  })()
+  })
 
-  const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(transaction)
+  let orderId
+  try {
+    orderId = placeOrder()
+  } catch (err) {
+    if (err instanceof OrderError) return res.status(err.status).json({ error: err.message })
+    throw err
+  }
+
+  const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId)
   res.status(201).json(order)
 })
 
@@ -189,11 +234,16 @@ app.patch('/api/orders/:id', authenticate, requireRole('admin'), (req, res) => {
   if (!allowed.includes(status)) {
     return res.status(400).json({ error: 'Invalid status' })
   }
-  db.prepare('UPDATE orders SET status = ? WHERE id = ?').run(status, req.params.id)
+  const { changes } = db.prepare('UPDATE orders SET status = ? WHERE id = ?').run(status, req.params.id)
+  if (changes === 0) return res.status(404).json({ error: 'Order not found' })
   const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(req.params.id)
   res.json(order)
 })
 
-app.listen(port, () => {
-  console.log(`CommerceSuite API running on http://localhost:${port}`)
-})
+if (require.main === module) {
+  app.listen(port, () => {
+    console.log(`CommerceSuite API running on http://localhost:${port}`)
+  })
+}
+
+module.exports = app
