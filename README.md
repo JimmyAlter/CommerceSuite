@@ -11,6 +11,8 @@ An internal procurement storefront: catalog, cart and checkout for buyers, and o
 | Admin | `admin@commercesuite.dev` | `demo123` |
 | Buyer | `buyer@commercesuite.dev` | `demo123` |
 
+![Catalog](docs/screenshots/catalog.png)
+
 ## What it does
 
 - **Catalog**: public list of active products, with category, search, price filters and sorting in the UI
