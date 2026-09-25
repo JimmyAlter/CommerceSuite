@@ -1,92 +1,84 @@
-# NovaTech Supply
+# CommerceSuite
 
-NovaTech Supply is an enterprise procurement storefront built for internal hardware and software purchasing. It combines a clean catalog experience with secure checkout and admin-ready order management.
+[![CI](https://github.com/JimmyAlter/CommerceSuite/actions/workflows/ci.yml/badge.svg)](https://github.com/JimmyAlter/CommerceSuite/actions/workflows/ci.yml)
 
-## Capabilities
-- Secure login with JWT and rate-limited auth
-- Enterprise catalog with real-time inventory visibility
-- Server-side order totals and stock enforcement
-- Admin order management with status tracking
-- Responsive, modern UI optimized for procurement teams
+An internal procurement storefront: catalog, cart and checkout for buyers, and order management for admins. Totals, stock and roles are enforced on the server. The UI is branded as "NovaTech Supply", a fictional company.
 
-## Technology
-- Frontend: React + Vite
-- Backend: Node.js + Express
-- Database: SQLite (swap-in ready for PostgreSQL)
-- Security: Helmet, rate limiting, JWT, hashed passwords
+**Live demo:** [commercesuite-demo.vercel.app](https://commercesuite-demo.vercel.app). The API runs on Render's free tier, so the first request after a while idle can take up to a minute.
 
-## Architecture
+| Role | Email | Password |
+|---|---|---|
+| Admin | `admin@commercesuite.dev` | `demo123` |
+| Buyer | `buyer@commercesuite.dev` | `demo123` |
+
+## What it does
+
+- **Catalog**: public list of active products, with category, search, price filters and sorting in the UI
+- **Checkout**: the client sends product IDs and quantities only. The server reads prices from the database, checks stock, and writes the order, its line items and the stock decrement in one SQLite transaction. If any line fails, nothing is written
+- **Roles**: `requireRole('admin')` guards product creation, the order list and status changes, so a buyer token gets a 403. Hiding admin screens in the UI is not what protects them
+- **Order status**: `processing` → `fulfilled` or `cancelled`. Any other value is rejected
+
+It shares its foundation with [AssetDesk](https://github.com/JimmyAlter/AssetDesk). This is the one where the role checks actually landed.
+
+## Validation and errors
+
+| Case | Response |
+|---|---|
+| Missing or invalid token | 401 |
+| Buyer calling an admin route | 403 |
+| Unknown product, bad quantity (not a whole number from 1 to 999), more than 50 lines, missing shipping fields, unknown payment method | 400 |
+| Not enough stock, duplicate SKU | 409 |
+| Status change on a missing order | 404 |
+
+## Stack
+
+React 19 and Vite (frontend) · Node.js, Express and better-sqlite3 (API) · JWT auth, bcrypt, helmet and express-rate-limit
+
+```text
+React (Vercel) ──► Express API (Render) ──► SQLite
 ```
-React UI -> Express API -> SQLite
-```
 
-## Local Setup
+The frontend also has a browser-only mock API (`frontend/src/mockApi.js`). It is used when `VITE_API_URL` is not set and the app runs on `*.vercel.app` or with `VITE_DEMO_MODE=true`.
 
-### Backend
-```
+## Running it locally
+
+```bash
 cd backend
-npm install
 cp .env.example .env
-npm run seed
-npm run dev
+npm ci
+npm start            # http://localhost:4100, creates and seeds the database on first run
+
+cd ../frontend
+npm ci
+npm run dev          # http://localhost:5173, talks to http://localhost:4100 by default
 ```
 
-API: `http://localhost:4100`
+## Tests
 
-### Frontend
-```
-cd frontend
-npm install
-cp .env.example .env
-npm run dev
+```bash
+cd backend && npm test
 ```
 
-Frontend: `http://localhost:5173`
+The node:test suite starts the API against a fresh SQLite file and checks the following:
 
-### Demo Access
-- Admin: `admin@commercesuite.dev` / `demo123`
-- Buyer: `buyer@commercesuite.dev` / `demo123`
+- RBAC on every admin route
+- totals are computed from server prices, even when the client sends a price
+- an order that exceeds stock is rejected and leaves orders and inventory untouched
+- every row of the validation table above
 
-## Notes
-- Update `CORS_ORIGIN` in `backend/.env` if the frontend URL changes.
-- For production, replace SQLite with PostgreSQL and use environment-based secrets.
+CI runs these tests on Node 20 and 22, plus the frontend lint and build.
 
----
+## Security notes
 
-## 🛡️ Security & Architecture Model
+- All queries are prepared statements with `?` placeholders.
+- `helmet` sets the default security headers. JSON bodies are capped at 200 KB, and login is limited to 20 attempts per minute.
+- With `NODE_ENV=production`, the server exits at startup if `JWT_SECRET` is missing or still the development default.
+- Passwords are stored as bcrypt hashes and never returned by the API.
 
-In accordance with community security code review, the platform is designed with the following security boundaries:
+## Deployment
 
-1.  **SQL Injection Mitigation (100% Parameterized Queries):** 
-    All SQLite database queries (including user auth, product catalog retrieval, order inserts, order items records, and status patches) are written using parameterized prepared statements via the SQLite engine (`db.prepare(...)` with placeholder `?`). Raw input string concatenation is never used, completely neutralizing SQL injection vectors.
-2.  **API Rate Limiting & Hardening:**
-    The login endpoint (`/api/auth/login`) is gated by rate-limiting middleware (`express-rate-limit`) to prevent automated dictionary attacks. The backend uses `helmet` headers for basic security sanitization (CSP, clickjacking prevention, X-Content-Type-Options) and restricts JSON payloads to `200kb`.
-3.  **Role-Based Access Control (RBAC):**
-    Authentication is verified via secure JWT signatures. Specific administrative endpoints (like adding products, listing all orders, and patching order statuses) are protected by a server-side RBAC middleware (`requireRole('admin')`), ensuring that client-side route hiding is backed by strict backend validation.
+`render.yaml` defines the API service and `DB_PATH`. The frontend is a static Vite build on Vercel with `VITE_API_URL` pointing at the API. SQLite fits a single small instance like this demo. For more than one instance, move to PostgreSQL. The data layer lives in `backend/src/db.js`.
 
----
+## License
 
-## 🌐 Deployment & Persistence Model (SQLite Free-Tier Warning)
-
-By default, this project deploys SQLite on Render's free tier:
-*   **Ephemeral Filesystem:** Because free Render instances lack persistent disk volume attachments, the SQLite database (`.db`) is stored in the writable ephemeral container space.
-*   **Safety Recycle:** Whenever the dyno goes to sleep due to inactivity or recycles during deployments, the database resets to its default seeded state. For public showcase demos, this acts as a natural security feature, clearing user-submitted spam.
-*   **Production Upgrade:** For a production-ready deployment, it is highly recommended to provision PostgreSQL on Render (which is natively supported by swap-in client layers in `db.js`) or use a remote DB provider (like Neon, Turso/LibSQL, or Supabase).
-
----
-
-## ⚙️ Environment Variables
-
-### Backend Configuration (`/backend/.env`)
-| Variable | Description | Default / Example | Required |
-|---|---|---|---|
-| `PORT` | Port for Express API | `4100` | No |
-| `JWT_SECRET` | 256-bit cryptographically secure signature secret | `your_secure_jwt_secret_here` | **Yes (Prod)** |
-| `CORS_ORIGIN` | Allowed origin for incoming requests | `https://commercesuite-demo.vercel.app` | Yes |
-
-### Frontend Configuration (`/frontend/.env`)
-| Variable | Description | Default / Example | Required |
-|---|---|---|---|
-| `VITE_API_URL` | Live Render backend endpoint | `https://commercesuite-backend.onrender.com` | No (falls back to local mock storage) |
-| `VITE_DEMO_MODE` | Force UI to run in local mock database mode | `true` | No |
-
+MIT. See [LICENSE](LICENSE).
