@@ -1,5 +1,6 @@
 import React from 'react'
-import { Icon, icons } from './Icon'
+import { Icon } from './Icon'
+import { icons } from './iconPaths'
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value / 100)

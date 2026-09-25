@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
-import { Icon, icons } from './Icon'
+import { Icon } from './Icon'
+import { icons } from './iconPaths'
 
 export const LoginModal = ({ open, onClose, onLogin, error, busy }) => {
   const [email, setEmail] = useState('buyer@commercesuite.dev')

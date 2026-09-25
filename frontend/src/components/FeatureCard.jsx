@@ -1,5 +1,6 @@
 import React from 'react'
-import { Icon, icons } from './Icon'
+import { Icon } from './Icon'
+import { icons } from './iconPaths'
 
 export const NavLink = ({ href, label }) => (
   <a href={href} className="nav-link">{label}</a>

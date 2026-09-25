@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Icon, icons } from './components/Icon'
+import { Icon } from './components/Icon'
+import { icons } from './components/iconPaths'
 import { NavLink, FeatureCard } from './components/FeatureCard'
 import { ProductCard } from './components/ProductCard'
 import { LoginModal } from './components/LoginModal'
@@ -632,7 +633,7 @@ function App() {
             <a href="#">About</a>
             <a href="#">Careers</a>
             <a href="#">Contact</a>
-            <a href="mailto:support@novatech.supply">support@novatech.supply</a>
+            <a href="mailto:support@novatech.example">support@novatech.example</a>
           </div>
         </div>
         <div className="footer-bottom">
@@ -653,13 +654,15 @@ function App() {
         error={error}
         busy={busy}
       />
-      <CheckoutModal
-        open={checkoutOpen}
-        onClose={() => setCheckoutOpen(false)}
-        cart={cart}
-        onSubmit={handleCheckout}
-        busy={busy}
-      />
+      {checkoutOpen && (
+        <CheckoutModal
+          open
+          onClose={() => setCheckoutOpen(false)}
+          cart={cart}
+          onSubmit={handleCheckout}
+          busy={busy}
+        />
+      )}
     </div>
   )
 }
