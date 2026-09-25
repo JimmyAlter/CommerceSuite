@@ -490,7 +490,7 @@ function App() {
       <section id="security" className="section section-alt">
         <div className="section-head">
           <h2>Security & Compliance</h2>
-          <p>Built with authentication, rate limiting, and audit-ready flows.</p>
+          <p>Built with authentication, rate limiting, and server-side order rules.</p>
         </div>
         <div className="feature-grid">
           <FeatureCard
@@ -506,7 +506,7 @@ function App() {
           <FeatureCard
             icon="layers"
             title="Operational controls"
-            description="Role-gated admin access, status audit trails, and compliance-ready workflows."
+            description="Role-gated admin order management, with status changes validated on the server."
           />
         </div>
       </section>
