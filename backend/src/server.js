@@ -5,7 +5,7 @@ const helmet = require('helmet')
 const rateLimit = require('express-rate-limit')
 const jwt = require('jsonwebtoken')
 const bcrypt = require('bcryptjs')
-const { nanoid } = require('nanoid')
+const crypto = require('crypto')
 const { db, init, seed } = require('./db')
 
 const app = express()
@@ -170,7 +170,7 @@ app.post('/api/orders', authenticate, (req, res) => {
     return res.status(400).json({ error: 'Invalid payment method' })
   }
 
-  const orderNumber = `ORD-${nanoid(8).toUpperCase()}`
+  const orderNumber = `ORD-${crypto.randomBytes(4).toString('hex').toUpperCase()}`
   let totalCents = 0
 
   const insertOrder = db.prepare(
