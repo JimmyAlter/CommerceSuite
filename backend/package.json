@@ -1,6 +1,7 @@
 {
   "name": "commercesuite-backend",
   "version": "0.1.0",
+  "description": "Express + SQLite API for CommerceSuite: auth, catalog, orders and role checks.",
   "private": true,
   "main": "src/server.js",
   "scripts": {
@@ -24,5 +25,10 @@
     "node": ">=20.19"
   },
   "license": "MIT",
-  "author": "Thiago Langone"
+  "author": "Thiago Langone",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JimmyAlter/CommerceSuite.git",
+    "directory": "backend"
+  }
 }

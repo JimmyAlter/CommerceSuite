@@ -1,8 +1,16 @@
 {
   "name": "commercesuite-frontend",
+  "version": "0.1.0",
+  "description": "React storefront for CommerceSuite: catalog, cart, checkout and order management.",
   "private": true,
-  "version": "0.0.0",
   "type": "module",
+  "license": "MIT",
+  "author": "Thiago Langone",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JimmyAlter/CommerceSuite.git",
+    "directory": "frontend"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
