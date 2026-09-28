@@ -208,6 +208,8 @@ function App() {
       })
       setOrders((prev) => prev.map((order) => (order.id === orderId ? updated : order)))
       setToast(`Order ${updated.order_number} updated to ${updated.status}`)
+      // Cancelling returns stock to the catalog.
+      if (updated.status === 'cancelled') loadProducts()
     } catch (err) {
       if (err.status === 401) return expireSession()
       setError(`Unable to update order status: ${err.message}`)
@@ -545,7 +547,7 @@ function App() {
                         <button
                           className="btn btn-ghost btn-sm"
                           onClick={() => updateOrderStatus(order.id, 'fulfilled')}
-                          disabled={busy || order.status === 'fulfilled'}
+                          disabled={busy || order.status !== 'processing'}
                         >
                           <Icon d={icons.check} size={13} />
                           Fulfill
@@ -553,7 +555,7 @@ function App() {
                         <button
                           className="btn btn-ghost btn-sm"
                           onClick={() => updateOrderStatus(order.id, 'cancelled')}
-                          disabled={busy || order.status === 'cancelled'}
+                          disabled={busy || order.status !== 'processing'}
                         >
                           <Icon d={icons.x} size={13} />
                           Cancel

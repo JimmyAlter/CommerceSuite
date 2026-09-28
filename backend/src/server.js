@@ -24,6 +24,13 @@ const MAX_ORDER_LINES = 50
 const MAX_QUANTITY = 999
 const MAX_TEXT_LENGTH = 200
 const PRODUCT_STATUSES = ['active', 'inactive']
+const ORDER_STATUSES = ['processing', 'fulfilled', 'cancelled']
+// Allowed order status transitions. fulfilled and cancelled are final.
+const ORDER_TRANSITIONS = {
+  processing: ['fulfilled', 'cancelled'],
+  fulfilled: [],
+  cancelled: [],
+}
 
 const isPositiveInteger = (value) => Number.isInteger(value) && value > 0
 const isNonNegativeInteger = (value) => Number.isInteger(value) && value >= 0
@@ -232,14 +239,38 @@ app.get('/api/orders', authenticate, requireRole('admin'), (req, res) => {
 
 app.patch('/api/orders/:id', authenticate, requireRole('admin'), (req, res) => {
   const { status } = req.body || {}
-  const allowed = ['processing', 'fulfilled', 'cancelled']
-  if (!allowed.includes(status)) {
+  if (!ORDER_STATUSES.includes(status)) {
     return res.status(400).json({ error: 'Invalid status' })
   }
-  const { changes } = db.prepare('UPDATE orders SET status = ? WHERE id = ?').run(status, req.params.id)
-  if (changes === 0) return res.status(404).json({ error: 'Order not found' })
-  const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(req.params.id)
-  res.json(order)
+  const orderId = Number(req.params.id)
+  if (!isPositiveInteger(orderId)) return res.status(404).json({ error: 'Order not found' })
+
+  const changeStatus = db.transaction(() => {
+    const order = db.prepare('SELECT id, status FROM orders WHERE id = ?').get(orderId)
+    if (!order) throw new OrderError(404, 'Order not found')
+    if (!ORDER_TRANSITIONS[order.status].includes(status)) {
+      throw new OrderError(409, `Cannot change an order from ${order.status} to ${status}`)
+    }
+    db.prepare('UPDATE orders SET status = ? WHERE id = ?').run(status, orderId)
+    if (status === 'cancelled') {
+      // Put the reserved stock back, in the same transaction as the status change.
+      db.prepare(
+        `UPDATE products SET inventory = inventory + (
+           SELECT COALESCE(SUM(quantity), 0) FROM order_items
+           WHERE order_items.order_id = ? AND order_items.product_id = products.id
+         )
+         WHERE id IN (SELECT product_id FROM order_items WHERE order_id = ?)`
+      ).run(orderId, orderId)
+    }
+  })
+
+  try {
+    changeStatus()
+  } catch (err) {
+    if (err instanceof OrderError) return res.status(err.status).json({ error: err.message })
+    throw err
+  }
+  res.json(db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId))
 })
 
 app.use((req, res) => {

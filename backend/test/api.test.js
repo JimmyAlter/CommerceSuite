@@ -119,17 +119,51 @@ test('shipping details and payment method are validated', async () => {
   assert.equal((await request('POST', '/api/orders', { token: buyer, body: { items: [], shipping } })).status, 400)
 })
 
-test('admins can move an order through the allowed statuses only', async () => {
-  const admin = await adminToken()
-  const buyer = await buyerToken()
+const placeOrder = async (quantity = 1) => {
   const product = firstProduct()
-  const order = (await request('POST', '/api/orders', { token: buyer, body: { items: [{ product_id: product.id, quantity: 1 }], shipping } })).body
+  const res = await request('POST', '/api/orders', {
+    token: await buyerToken(),
+    body: { items: [{ product_id: product.id, quantity }], shipping },
+  })
+  assert.equal(res.status, 201)
+  return { order: res.body, product }
+}
+const setStatus = async (id, status) =>
+  request('PATCH', `/api/orders/${id}`, { token: await adminToken(), body: { status } })
 
-  const ok = await request('PATCH', `/api/orders/${order.id}`, { token: admin, body: { status: 'fulfilled' } })
+test('processing orders can be fulfilled, and fulfilled is final', async () => {
+  const { order } = await placeOrder()
+  const ok = await setStatus(order.id, 'fulfilled')
   assert.equal(ok.status, 200)
   assert.equal(ok.body.status, 'fulfilled')
-  assert.equal((await request('PATCH', `/api/orders/${order.id}`, { token: admin, body: { status: 'refunded' } })).status, 400)
-  assert.equal((await request('PATCH', '/api/orders/999999', { token: admin, body: { status: 'fulfilled' } })).status, 404)
+  for (const next of ['processing', 'cancelled', 'fulfilled']) {
+    const res = await setStatus(order.id, next)
+    assert.equal(res.status, 409, `fulfilled -> ${next}`)
+    assert.match(res.body.error, /Cannot change an order from fulfilled/)
+  }
+})
+
+test('cancelling an order puts its stock back, and cancelled is final', async () => {
+  const { order, product } = await placeOrder(3)
+  assert.equal(productById(product.id).inventory, product.inventory - 3)
+
+  const res = await setStatus(order.id, 'cancelled')
+  assert.equal(res.status, 200)
+  assert.equal(res.body.status, 'cancelled')
+  assert.equal(productById(product.id).inventory, product.inventory, 'stock restored')
+
+  for (const next of ['processing', 'fulfilled', 'cancelled']) {
+    assert.equal((await setStatus(order.id, next)).status, 409, `cancelled -> ${next}`)
+  }
+  assert.equal(productById(product.id).inventory, product.inventory, 'stock not restored twice')
+})
+
+test('status changes validate the value and the order id', async () => {
+  const { order } = await placeOrder()
+  assert.equal((await setStatus(order.id, 'refunded')).status, 400)
+  assert.equal((await setStatus(order.id, 'processing')).status, 409, 'processing -> processing')
+  assert.equal((await setStatus(999999, 'fulfilled')).status, 404)
+  assert.equal((await setStatus('abc', 'fulfilled')).status, 404)
 })
 
 test('product creation validates prices, stock and duplicate SKUs', async () => {
