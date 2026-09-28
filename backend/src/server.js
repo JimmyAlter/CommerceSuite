@@ -7,11 +7,13 @@ const jwt = require('jsonwebtoken')
 const bcrypt = require('bcryptjs')
 const crypto = require('crypto')
 const { db, init, seed } = require('./db')
+const { parseOrigins, isAllowedOrigin, parseTrustProxy } = require('./config')
 
 const app = express()
 const port = process.env.PORT || 4100
+const isProduction = process.env.NODE_ENV === 'production'
 
-if (process.env.NODE_ENV === 'production' && (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'dev_secret_change_me')) {
+if (isProduction && (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'dev_secret_change_me')) {
   console.error('CRITICAL ERROR: JWT_SECRET environment variable is missing or insecure in production mode!')
   process.exit(1)
 }
@@ -38,22 +40,17 @@ class OrderError extends Error {
 init()
 seed()
 
-app.use(helmet())
-const allowOrigin = (origin) => {
-  if (!origin) return true
-  if (origin.startsWith('http://localhost:')) return true
-  if (origin.startsWith('http://127.0.0.1:')) return true
-  return origin === process.env.CORS_ORIGIN
-}
+// Needed so express-rate-limit sees the real client IP instead of the proxy's.
+app.set('trust proxy', parseTrustProxy(process.env.TRUST_PROXY, isProduction))
 
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      if (allowOrigin(origin)) return callback(null, true)
-      return callback(new Error('Not allowed by CORS'))
-    },
-  })
-)
+app.use(helmet())
+
+const corsOptions = { allowed: parseOrigins(process.env.CORS_ORIGIN), production: isProduction }
+app.use((req, res, next) => {
+  if (isAllowedOrigin(req.headers.origin, corsOptions)) return next()
+  return res.status(403).json({ error: 'Origin not allowed' })
+})
+app.use(cors({ origin: true }))
 app.use(express.json({ limit: '200kb' }))
 
 const authLimiter = rateLimit({

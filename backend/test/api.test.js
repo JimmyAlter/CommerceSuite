@@ -171,3 +171,21 @@ test('unknown routes return a JSON 404', async () => {
   assert.equal(res.status, 404)
   assert.deepEqual(res.body, { error: 'Not found' })
 })
+
+test('requests from unknown origins get a JSON 403 instead of a 500', async () => {
+  const res = await fetch(`${baseUrl}/api/products`, { headers: { Origin: 'https://evil.example' } })
+  assert.equal(res.status, 403)
+  assert.deepEqual(await res.json(), { error: 'Origin not allowed' })
+
+  const preflight = await fetch(`${baseUrl}/api/orders`, {
+    method: 'OPTIONS',
+    headers: { Origin: 'https://evil.example', 'Access-Control-Request-Method': 'POST' },
+  })
+  assert.equal(preflight.status, 403)
+})
+
+test('local dev origins are allowed outside production and echoed back', async () => {
+  const res = await fetch(`${baseUrl}/api/products`, { headers: { Origin: 'http://localhost:5173' } })
+  assert.equal(res.status, 200)
+  assert.equal(res.headers.get('access-control-allow-origin'), 'http://localhost:5173')
+})
