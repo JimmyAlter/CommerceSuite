@@ -1,14 +1,14 @@
 services:
   - type: web
     name: commercesuite-backend
-    env: node
+    runtime: node
     plan: free
-    buildCommand: npm install --prefix backend
+    buildCommand: npm ci --prefix backend
     startCommand: node backend/src/server.js
-    disk:
-      name: commercesuite-db
-      mountPath: /opt/data
-      sizeGB: 1
+    healthCheckPath: /api/health
+    # The free plan has no persistent disk. SQLite lives on the instance's
+    # ephemeral filesystem and is re-seeded on boot, so demo data resets on
+    # every deploy or restart.
     envVars:
       - key: PORT
         value: 10000
@@ -16,7 +16,5 @@ services:
         value: production
       - key: JWT_SECRET
         generateValue: true
-      - key: DB_PATH
-        value: /opt/data/commercesuite.db
       - key: CORS_ORIGIN
         value: https://commercesuite-demo.vercel.app
