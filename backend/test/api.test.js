@@ -320,3 +320,18 @@ test('buyers can list their own orders with line items, and only their own', asy
   assert.ok(adminMine.body.every((o) => o.user_id === adminId))
   assert.equal((await request('GET', '/api/orders/mine')).status, 401)
 })
+
+test('bodies over 200 KB are a JSON 413', async () => {
+  const res = await request('POST', '/api/auth/login', { body: { email: 'x', password: 'y'.repeat(210 * 1024) } })
+  assert.equal(res.status, 413)
+  assert.deepEqual(res.body, { error: 'Request body too large' })
+})
+
+test('unexpected errors are a generic JSON 500', async (t) => {
+  t.mock.method(console, 'error', () => {})
+  t.mock.method(db, 'prepare', () => { throw new Error('disk on fire') })
+  const res = await request('GET', '/api/products')
+  t.mock.restoreAll()
+  assert.equal(res.status, 500)
+  assert.deepEqual(res.body, { error: 'Internal server error' })
+})
