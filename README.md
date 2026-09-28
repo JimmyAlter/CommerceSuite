@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/JimmyAlter/CommerceSuite/actions/workflows/ci.yml/badge.svg)](https://github.com/JimmyAlter/CommerceSuite/actions/workflows/ci.yml)
 
-An internal procurement storefront: catalog, cart and checkout for buyers, and order management for admins. Totals, stock and roles are enforced on the server. The UI is branded as "NovaTech Supply", a fictional company.
+A B2B procurement storefront: catalog, cart and checkout for buyers, and order management for admins. Totals, stock and roles are enforced by the API, not the browser. The UI is branded as "NovaTech Supply", a fictional company used only as the in-app demo brand.
 
 **Live demo:** [commercesuite-demo.vercel.app](https://commercesuite-demo.vercel.app). The API runs on Render's free tier, so the first request after a while idle can take up to a minute.
 
@@ -11,36 +11,66 @@ An internal procurement storefront: catalog, cart and checkout for buyers, and o
 | Admin | `admin@commercesuite.dev` | `demo123` |
 | Buyer | `buyer@commercesuite.dev` | `demo123` |
 
+The demo database is recreated and seeded every time the API restarts (deploys, cold starts), so orders placed there do not persist.
+
 ![Catalog](docs/screenshots/catalog.png)
+
+![Admin order management](docs/screenshots/admin-orders.png)
 
 ## What it does
 
 - **Catalog**: public list of active products, with category, search, price filters and sorting in the UI
 - **Checkout**: the client sends product IDs and quantities only. The server reads prices from the database, checks stock, and writes the order, its line items and the stock decrement in one SQLite transaction. If any line fails, nothing is written
-- **Roles**: `requireRole('admin')` guards product creation, the order list and status changes, so a buyer token gets a 403. Hiding admin screens in the UI is not what protects them
-- **Order status**: `processing` → `fulfilled` or `cancelled`. Any other value is rejected
+- **My orders**: a signed-in buyer sees their own orders and line items
+- **Roles**: `requireRole('admin')` guards product creation, the full order list and status changes, so a buyer token gets a 403. Hiding admin screens in the UI is not what protects them
+- **Order status**: `processing` can move to `fulfilled` or `cancelled`, and both are final. Any other transition is a 409. Cancelling puts the reserved stock back in the same transaction
 
-It shares its foundation with [AssetDesk](https://github.com/JimmyAlter/AssetDesk). This is the one where the role checks actually landed.
+## Architecture
+
+```text
+React 19 + Vite (Vercel) ──HTTPS/JSON──► Express 4 API (Render) ──► SQLite (better-sqlite3)
+```
+
+| Path | What lives there |
+|---|---|
+| `backend/src/server.js` | Routes, auth middleware, validation, error handlers |
+| `backend/src/config.js` | CORS origin and `trust proxy` parsing |
+| `backend/src/db.js` | Schema (foreign keys, CHECK constraints) and seed data |
+| `frontend/src/api.js` | `fetchJson` helper: base URL, headers, `{ error }` handling |
+| `frontend/src/App.jsx` | Catalog, cart, checkout and orders UI |
+
+## API
+
+Request and response bodies are JSON. Errors are always `{ "error": "message" }`. Authenticated routes take `Authorization: Bearer <token>`.
+
+| Method | Path | Auth | Notes |
+|---|---|---|---|
+| GET | `/api/health` | none | `{ "status": "ok" }` |
+| POST | `/api/auth/login` | none | `{ email, password }` returns `{ token, user }`. Rate limited to 20/min per client |
+| GET | `/api/products` | none | Active products |
+| POST | `/api/products` | admin | Create a product |
+| POST | `/api/orders` | any user | `{ items: [{ product_id, quantity }], shipping: { name, address, city, country }, payment_method? }` |
+| GET | `/api/orders/mine` | any user | The caller's orders, each with its `items` |
+| GET | `/api/orders` | admin | All orders |
+| PATCH | `/api/orders/:id` | admin | `{ status }`, `fulfilled` or `cancelled` |
 
 ## Validation and errors
 
 | Case | Response |
 |---|---|
-| Missing or invalid token | 401 |
-| Buyer calling an admin route | 403 |
+| Malformed JSON body, missing or wrong-typed fields (login, orders, products) | 400 |
 | Unknown product, bad quantity (not a whole number from 1 to 999), more than 50 lines, missing shipping fields, unknown payment method | 400 |
-| Not enough stock, duplicate SKU | 409 |
-| Status change on a missing order | 404 |
-
-## Stack
-
-React 19 and Vite (frontend) · Node.js, Express and better-sqlite3 (API) · JWT auth, bcrypt, helmet and express-rate-limit
-
-```text
-React (Vercel) ──► Express API (Render) ──► SQLite
-```
+| Missing, malformed, expired or wrongly signed token, or a scheme other than `Bearer` | 401 |
+| Buyer calling an admin route | 403 |
+| Request from a browser origin that is not allowed | 403 |
+| Unknown route, status change on a missing order | 404 |
+| Not enough stock, duplicate SKU, status change that is not allowed | 409 |
+| Body over 200 KB | 413 |
+| Anything unexpected | 500 with a generic message; details are only logged server-side |
 
 ## Running it locally
+
+Requires Node.js 20.19 or newer.
 
 ```bash
 cd backend
@@ -53,31 +83,63 @@ npm ci
 npm run dev          # http://localhost:5173, talks to http://localhost:4100 by default
 ```
 
-## Tests
+Backend environment variables (see `backend/.env.example`):
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `PORT` | `4100` | HTTP port |
+| `JWT_SECRET` | dev value | Required in production; the server exits if it is missing or still the dev default |
+| `CORS_ORIGIN` | none | Comma-separated browser origins allowed to call the API. `http://localhost` and `http://127.0.0.1` (any port) are also allowed when `NODE_ENV` is not `production` |
+| `DB_PATH` | `backend/data/commercesuite.db` | SQLite file |
+| `TRUST_PROXY` | `1` in production, off otherwise | Express `trust proxy` value (hop count, `true`/`false`, or a subnet list), so the rate limit sees the real client IP behind a reverse proxy |
+
+The frontend reads `VITE_API_URL` (default `http://localhost:4100`).
+
+## Tests and CI
 
 ```bash
-cd backend && npm test
+cd backend && npm test          # or: npm run test:coverage
+cd frontend && npm test && npm run lint
 ```
 
-The node:test suite starts the API against a fresh SQLite file and checks the following:
+The backend node:test suite starts the API against a throwaway SQLite file and covers:
 
-- RBAC on every admin route
-- totals are computed from server prices, even when the client sends a price
+- RBAC on every admin route, and buyers only seeing their own orders
+- totals computed from server prices, even when the client sends a price
 - an order that exceeds stock is rejected and leaves orders and inventory untouched
-- every row of the validation table above
+- the order status rules, including stock being restored once on cancel
+- every row of the validation table above, including expired, `alg: none` and non-Bearer tokens
+- CORS and `trust proxy` configuration
+- the schema: seeding an empty database, foreign keys, CHECK constraints, and booting on a database created with the older schema
 
-CI runs these tests on Node 20 and 22, plus the frontend lint and build.
+The frontend has vitest tests for the `fetchJson` helper: headers are merged so `Content-Type` survives an `Authorization` header, and server error messages reach the UI.
+
+CI runs the backend suite with coverage on Node 20 and 22, plus the frontend lint, tests and build. Dependabot opens weekly updates for both packages and the workflow actions.
 
 ## Security notes
 
 - All queries are prepared statements with `?` placeholders.
-- `helmet` sets the default security headers. JSON bodies are capped at 200 KB, and login is limited to 20 attempts per minute.
-- With `NODE_ENV=production`, the server exits at startup if `JWT_SECRET` is missing or still the development default.
-- Passwords are stored as bcrypt hashes and never returned by the API.
+- Passwords are bcrypt hashes and are never returned. Login for an unknown email still runs a bcrypt comparison against a dummy hash, so it takes about as long as a wrong password.
+- JWTs are signed and verified with HS256 only and expire after 8 hours.
+- `helmet` sets the default security headers. JSON bodies are capped at 200 KB. Login is limited to 20 attempts per minute per client IP; `trust proxy` makes that work behind Render's proxy.
+- With `NODE_ENV=production`, the server exits at startup if `JWT_SECRET` is missing or still the development default, and localhost origins are rejected.
+- The frontend keeps the token in `localStorage`. That keeps the demo simple, but any XSS on the page could read it. A production build would use an `HttpOnly`, `SameSite` cookie with CSRF protection instead.
+
+See [SECURITY.md](SECURITY.md) to report a vulnerability.
 
 ## Deployment
 
-`render.yaml` defines the API service and `DB_PATH`. The frontend is a static Vite build on Vercel with `VITE_API_URL` pointing at the API. SQLite fits a single small instance like this demo. For more than one instance, move to PostgreSQL. The data layer lives in `backend/src/db.js`.
+`render.yaml` defines the API service: `npm ci`, a health check, a generated `JWT_SECRET` and `CORS_ORIGIN` for the Vercel site. Render's free plan has no persistent disk, so SQLite lives on the instance's ephemeral filesystem and is seeded on boot. The frontend is a static Vite build on Vercel with `VITE_API_URL` pointing at the API.
+
+## Limitations
+
+- SQLite on a single instance. Running more than one instance, or keeping data across restarts, means moving to PostgreSQL; the data layer is in `backend/src/db.js`.
+- Foreign keys and CHECK constraints apply to databases created with the current schema. An older database file still works but keeps its old tables until it is recreated. There is no migration tool.
+- No real payments, taxes or shipping. `payment_method` is recorded; nothing is charged.
+- No product editing, order pagination or password reset. Product creation is API-only; the UI has no form for it.
+- The token lives in `localStorage` (see Security notes).
+
+It shares its foundation with [AssetDesk](https://github.com/JimmyAlter/AssetDesk), an IT operations workspace by the same author.
 
 ## License
 
