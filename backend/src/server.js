@@ -243,6 +243,17 @@ app.get('/api/orders', authenticate, requireRole('admin'), (req, res) => {
   res.json(orders)
 })
 
+// Any signed-in user can list their own orders, with line items.
+app.get('/api/orders/mine', authenticate, (req, res) => {
+  const orders = db
+    .prepare('SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC, id DESC')
+    .all(req.user.sub)
+  const getItems = db.prepare(
+    'SELECT product_id, product_name, quantity, unit_price_cents FROM order_items WHERE order_id = ? ORDER BY id'
+  )
+  res.json(orders.map((order) => ({ ...order, items: getItems.all(order.id) })))
+})
+
 app.patch('/api/orders/:id', authenticate, requireRole('admin'), (req, res) => {
   const { status } = req.body || {}
   if (!ORDER_STATUSES.includes(status)) {

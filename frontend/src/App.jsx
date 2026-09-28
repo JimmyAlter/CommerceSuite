@@ -10,6 +10,13 @@ import { authHeaders, fetchJson } from './api'
 const formatCurrency = (value) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value / 100)
 
+const SESSION_EXPIRED = 'Your session has expired. Please sign in again.'
+
+const clearStoredSession = () => {
+  localStorage.removeItem('commerce-token')
+  localStorage.removeItem('commerce-user')
+}
+
 function App() {
   const [products, setProducts] = useState([])
   const [loadingProducts, setLoadingProducts] = useState(true)
@@ -41,13 +48,22 @@ function App() {
     loadProducts()
   }, [])
 
+  // Admins see every order; buyers see their own. Bumping ordersVersion reloads the list.
+  const [ordersVersion, setOrdersVersion] = useState(0)
   useEffect(() => {
-    if (user?.role === 'admin' && token) {
-      fetchJson('/api/orders', { headers: authHeaders(token) })
-        .then(setOrders)
-        .catch(() => setError('Unable to load orders'))
-    }
-  }, [user, token])
+    if (!token || !user) return
+    const path = user.role === 'admin' ? '/api/orders' : '/api/orders/mine'
+    fetchJson(path, { headers: authHeaders(token) })
+      .then(setOrders)
+      .catch((err) => {
+        if (err.status !== 401) return setError('Unable to load orders')
+        clearStoredSession()
+        setToken(null)
+        setUser(null)
+        setError(SESSION_EXPIRED)
+        setLoginOpen(true)
+      })
+  }, [user, token, ordersVersion])
 
   useEffect(() => {
     if (!toast) return undefined
@@ -157,8 +173,7 @@ function App() {
   }
 
   const handleLogout = () => {
-    localStorage.removeItem('commerce-token')
-    localStorage.removeItem('commerce-user')
+    clearStoredSession()
     setToken(null)
     setUser(null)
     setOrders([])
@@ -168,7 +183,7 @@ function App() {
   const expireSession = () => {
     handleLogout()
     setCheckoutOpen(false)
-    setError('Your session has expired. Please sign in again.')
+    setError(SESSION_EXPIRED)
     setLoginOpen(true)
   }
 
@@ -190,6 +205,7 @@ function App() {
       setCart([])
       setCheckoutOpen(false)
       loadProducts()
+      setOrdersVersion((v) => v + 1)
     } catch (err) {
       if (err.status === 401) return expireSession()
       setError(`Unable to place order: ${err.message}`)
@@ -490,8 +506,17 @@ function App() {
       {/* ── Orders ── */}
       <section id="orders" className="section">
         <div className="section-head">
-          <h2>Order Management</h2>
-          <p>Admin visibility into fulfillment and customer activity.</p>
+          {user && user.role !== 'admin' ? (
+            <>
+              <h2>My Orders</h2>
+              <p>Orders placed with this account and their current status.</p>
+            </>
+          ) : (
+            <>
+              <h2>Order Management</h2>
+              <p>Admins can fulfill or cancel processing orders. Cancelling returns the stock.</p>
+            </>
+          )}
         </div>
         {user?.role === 'admin' ? (
           <div className="card">
@@ -527,7 +552,7 @@ function App() {
               </div>
               {orders.length === 0 ? (
                 <div className="table-row">
-                  <span style={{ color: 'var(--text-muted)' }}>No orders yet.</span>
+                  <span className="text-muted">No orders yet.</span>
                 </div>
               ) : (
                 orders
@@ -539,10 +564,10 @@ function App() {
                   )
                   .map((order) => (
                     <div key={order.id} className="table-row">
-                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13 }}>{order.order_number}</span>
+                      <span className="mono">{order.order_number}</span>
                       <span className={`status-badge ${order.status}`}>{order.status}</span>
-                      <span style={{ fontFamily: 'var(--font-mono)' }}>{formatCurrency(order.total_cents)}</span>
-                      <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>{order.created_at}</span>
+                      <span className="mono">{formatCurrency(order.total_cents)}</span>
+                      <span className="text-muted">{order.created_at}</span>
                       <div className="table-actions">
                         <button
                           className="btn btn-ghost btn-sm"
@@ -566,13 +591,40 @@ function App() {
               )}
             </div>
           </div>
+        ) : user ? (
+          <div className="card">
+            <div className="table">
+              <div className="table-row header">
+                <span>Order</span>
+                <span>Status</span>
+                <span>Total</span>
+                <span>Date</span>
+                <span>Items</span>
+              </div>
+              {orders.length === 0 ? (
+                <div className="table-row">
+                  <span className="text-muted">You have not placed any orders yet.</span>
+                </div>
+              ) : (
+                orders.map((order) => (
+                  <div key={order.id} className="table-row">
+                    <span className="mono">{order.order_number}</span>
+                    <span className={`status-badge ${order.status}`}>{order.status}</span>
+                    <span className="mono">{formatCurrency(order.total_cents)}</span>
+                    <span className="text-muted">{order.created_at}</span>
+                    <span className="order-items">
+                      {(order.items || []).map((item) => `${item.quantity} × ${item.product_name}`).join(', ')}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         ) : (
           <div className="card orders-empty">
-            <div style={{ textAlign: 'center', padding: '40px 20px' }}>
-              <Icon d={icons.lock} size={32} />
-              <p style={{ color: 'var(--text-muted)', margin: '12px 0 16px' }}>Sign in as admin to view order management.</p>
-              <button className="btn btn-primary btn-sm" onClick={() => setLoginOpen(true)}>Admin sign in</button>
-            </div>
+            <Icon d={icons.lock} size={32} />
+            <p>Sign in as a buyer to see your orders, or as an admin to manage all orders.</p>
+            <button className="btn btn-primary btn-sm" onClick={() => setLoginOpen(true)}>Sign in</button>
           </div>
         )}
       </section>

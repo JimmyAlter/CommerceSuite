@@ -300,3 +300,23 @@ test('order and product payloads with the wrong types are 400s', async () => {
     assert.equal((await request('POST', '/api/products', { token: admin, body: { ...valid, ...bad } })).status, 400, JSON.stringify(bad))
   }
 })
+
+test('buyers can list their own orders with line items, and only their own', async () => {
+  const { order, product } = await placeOrder(2)
+  const buyerId = db.prepare('SELECT id FROM users WHERE email = ?').get('buyer@commercesuite.dev').id
+  const adminId = db.prepare('SELECT id FROM users WHERE email = ?').get('admin@commercesuite.dev').id
+
+  const mine = await request('GET', '/api/orders/mine', { token: await buyerToken() })
+  assert.equal(mine.status, 200)
+  assert.ok(mine.body.length > 0)
+  assert.ok(mine.body.every((o) => o.user_id === buyerId))
+  const listed = mine.body.find((o) => o.id === order.id)
+  assert.deepEqual(listed.items, [
+    { product_id: product.id, product_name: product.name, quantity: 2, unit_price_cents: product.price_cents },
+  ])
+
+  const adminMine = await request('GET', '/api/orders/mine', { token: await adminToken() })
+  assert.equal(adminMine.status, 200)
+  assert.ok(adminMine.body.every((o) => o.user_id === adminId))
+  assert.equal((await request('GET', '/api/orders/mine')).status, 401)
+})

@@ -889,7 +889,21 @@ img { max-width: 100%; display: block; }
 
 .orders-empty p {
   color: var(--text-muted);
-  margin-bottom: 16px;
+  margin: 12px 0 16px;
+}
+
+.order-items {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+/* --- Utilities --- */
+.mono {
+  font-family: var(--font-mono);
+}
+
+.text-muted {
+  color: var(--text-muted);
 }
 
 /* --- Skeleton --- */
