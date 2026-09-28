@@ -10,6 +10,8 @@ import { authHeaders, fetchJson } from './api'
 const formatCurrency = (value) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value / 100)
 
+const REPO_URL = 'https://github.com/JimmyAlter/CommerceSuite'
+
 const SESSION_EXPIRED = 'Your session has expired. Please sign in again.'
 
 const clearStoredSession = () => {
@@ -77,9 +79,6 @@ function App() {
     () => cart.reduce((sum, item) => sum + item.price_cents * item.quantity, 0),
     [cart]
   )
-  const cartTax = Math.round(cartSubtotal * 0.08)
-  const cartShipping = cartSubtotal > 0 ? 1200 : 0
-  const cartTotal = cartSubtotal + cartTax + cartShipping
 
   /* ── Filters ── */
 
@@ -87,6 +86,7 @@ function App() {
     () => ['All', ...new Set(products.map((p) => p.category))],
     [products]
   )
+  const unitsInStock = products.reduce((sum, p) => sum + p.inventory, 0)
   const [category, setCategory] = useState('All')
   const [search, setSearch] = useState('')
   const [priceRange, setPriceRange] = useState('all')
@@ -287,59 +287,48 @@ function App() {
       {/* ── Hero ── */}
       <section className="hero">
         <div className="hero-content">
-          <p className="eyebrow">Enterprise procurement platform</p>
+          <p className="eyebrow">B2B procurement demo</p>
           <h1>
             Hardware that scales{' '}
             <em>with your team.</em>
           </h1>
           <p className="hero-desc">
-            NovaTech Supply centralizes hardware and software purchasing with
-            secure checkout, real-time inventory, and order tracking — built
-            for teams that move fast.
+            NovaTech Supply is a fictional storefront for CommerceSuite. Browse the
+            catalog, check out as a buyer, and manage orders as an admin. Prices,
+            stock and roles are enforced by the API, not the browser.
           </p>
           <div className="hero-actions">
             <a className="btn btn-primary" href="#catalog">
               <Icon d={icons.search} size={15} />
               Browse catalog
             </a>
-            <button className="btn btn-ghost" onClick={() => setLoginOpen(true)}>
-              Request access
-            </button>
+            {!user && (
+              <button className="btn btn-ghost" onClick={() => setLoginOpen(true)}>
+                Sign in with a demo account
+              </button>
+            )}
           </div>
         </div>
         <div className="hero-card">
-          <h3>Live order dashboard</h3>
-          <p>Processing: 12 · Fulfilled: 48 · Pending: 7</p>
+          <h3>Catalog at a glance</h3>
+          <p>Live figures from the API.</p>
           <div className="hero-metrics">
             <div className="hero-metric accent">
-              <span>Avg. delivery</span>
-              <strong>4.2d</strong>
+              <span>Products</span>
+              <strong>{loadingProducts ? '–' : products.length}</strong>
             </div>
             <div className="hero-metric success">
-              <span>Compliance</span>
-              <strong>98%</strong>
+              <span>Categories</span>
+              <strong>{loadingProducts ? '–' : categories.length - 1}</strong>
             </div>
             <div className="hero-metric">
-              <span>Uptime</span>
-              <strong>99.9%</strong>
+              <span>Units in stock</span>
+              <strong>{loadingProducts ? '–' : unitsInStock}</strong>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ── Trusted Strip ── */}
-      <div className="trusted-strip">
-        <p>Trusted by leading teams</p>
-        <div className="trusted-logos">
-          <span className="trusted-logo">Meridian Labs</span>
-          <span className="trusted-logo">Vertex Systems</span>
-          <span className="trusted-logo">Arcline Group</span>
-          <span className="trusted-logo">Helix Corp</span>
-          <span className="trusted-logo">Stratos Inc</span>
-        </div>
-      </div>
-
-      {/* ── Banners ── */}
       {status && <div className="banner success">{status}</div>}
       {error && <div className="banner error">{error}</div>}
       {toast && <div className="toast">{toast}</div>}
@@ -396,7 +385,7 @@ function App() {
               <div key={idx} className="skeleton" />
             ))}
           {!loadingProducts && filteredProducts.length === 0 && (
-            <div className="card" style={{ gridColumn: '1 / -1', textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>
+            <div className="card grid-empty">
               No products found for this filter.
             </div>
           )}
@@ -457,20 +446,13 @@ function App() {
                   <span>Subtotal</span>
                   <strong>{formatCurrency(cartSubtotal)}</strong>
                 </div>
-                <div className="cart-summary-row">
-                  <span>Estimated tax</span>
-                  <strong>{formatCurrency(cartTax)}</strong>
-                </div>
-                <div className="cart-summary-row">
-                  <span>Shipping</span>
-                  <strong>{formatCurrency(cartShipping)}</strong>
-                </div>
                 <div className="cart-summary-row cart-total">
-                  <span>Total</span>
-                  <strong>{formatCurrency(cartTotal)}</strong>
+                  <span>Order total</span>
+                  <strong>{formatCurrency(cartSubtotal)}</strong>
                 </div>
+                <p className="cart-note">No tax or shipping in this demo. The server recalculates the total from its own prices.</p>
               </div>
-              <button className="btn btn-primary" onClick={openCheckout} style={{ width: '100%', marginTop: 8 }}>
+              <button className="btn btn-primary btn-block" onClick={openCheckout}>
                 Proceed to checkout
               </button>
             </div>
@@ -488,7 +470,7 @@ function App() {
           <FeatureCard
             icon="shield"
             title="Secure authentication"
-            description="JWT-based sessions with bcrypt password hashing and configurable login rate limits."
+            description="JWT sessions (HS256, 8-hour expiry), bcrypt password hashing and a per-client login rate limit."
           />
           <FeatureCard
             icon="lock"
@@ -638,39 +620,26 @@ function App() {
               <span>NovaTech Supply</span>
             </div>
             <p>
-              Enterprise procurement, delivered with precision. Secure,
-              transparent, and built for teams that need reliability.
+              A fictional company used as the demo brand for CommerceSuite, an
+              open-source procurement storefront.
             </p>
           </div>
           <div className="footer-col">
-            <h4>Platform</h4>
+            <h4>On this page</h4>
             <a href="#catalog">Product Catalog</a>
-            <a href="#security">Security</a>
-            <a href="#orders">Order Management</a>
             <a href="#cart">Cart</a>
+            <a href="#security">Security</a>
+            <a href="#orders">Orders</a>
           </div>
           <div className="footer-col">
-            <h4>Resources</h4>
-            <a href="#">Documentation</a>
-            <a href="#">API Reference</a>
-            <a href="#">Status Page</a>
-            <a href="#">Release Notes</a>
-          </div>
-          <div className="footer-col">
-            <h4>Company</h4>
-            <a href="#">About</a>
-            <a href="#">Careers</a>
-            <a href="#">Contact</a>
-            <a href="mailto:support@novatech.example">support@novatech.example</a>
+            <h4>Project</h4>
+            <a href={REPO_URL} target="_blank" rel="noreferrer">Source on GitHub</a>
+            <a href={`${REPO_URL}#api`} target="_blank" rel="noreferrer">API summary</a>
+            <a href={`${REPO_URL}/blob/main/SECURITY.md`} target="_blank" rel="noreferrer">Security policy</a>
           </div>
         </div>
         <div className="footer-bottom">
-          <span>© 2026 NovaTech Supply. All rights reserved.</span>
-          <div className="footer-bottom-links">
-            <a href="#">Privacy</a>
-            <a href="#">Terms</a>
-            <a href="#">Cookies</a>
-          </div>
+          <span>CommerceSuite by Thiago Langone · MIT License</span>
         </div>
       </footer>
 

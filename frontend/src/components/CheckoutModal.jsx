@@ -52,7 +52,7 @@ export const CheckoutModal = ({ open, onClose, cart, onSubmit, error, busy }) =>
             </select>
           </div>
           {error && <p className="form-error">{error}</p>}
-          <button className="btn btn-primary" type="submit" disabled={busy || cart.length === 0} style={{ width: '100%', marginTop: 4 }}>
+          <button className="btn btn-primary btn-block" type="submit" disabled={busy || cart.length === 0}>
             {busy ? 'Processing…' : 'Place order'}
           </button>
         </form>

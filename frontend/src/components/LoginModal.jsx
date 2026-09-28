@@ -32,7 +32,7 @@ export const LoginModal = ({ open, onClose, onLogin, error, busy }) => {
             <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" required />
           </div>
           {error && <p className="form-error">{error}</p>}
-          <button type="submit" className="btn btn-primary" disabled={busy} style={{ width: '100%', marginTop: 4 }}>
+          <button type="submit" className="btn btn-primary btn-block" disabled={busy}>
             {busy ? 'Signing in…' : 'Sign in'}
           </button>
           <p className="form-hint">Demo: buyer@commercesuite.dev / demo123</p>
