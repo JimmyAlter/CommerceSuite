@@ -88,7 +88,12 @@ app.get('/api/health', (req, res) => {
 
 app.post('/api/auth/login', authLimiter, (req, res) => {
   const { email, password } = req.body || {}
-  if (!email || !password) return res.status(400).json({ error: 'Missing credentials' })
+  if (typeof email !== 'string' || typeof password !== 'string' || !email || !password) {
+    return res.status(400).json({ error: 'Missing credentials' })
+  }
+  if (email.length > MAX_TEXT_LENGTH || password.length > MAX_TEXT_LENGTH) {
+    return res.status(400).json({ error: 'Invalid credentials format' })
+  }
 
   const user = db
     .prepare('SELECT id, name, email, role, password_hash FROM users WHERE email = ?')
@@ -238,6 +243,23 @@ app.patch('/api/orders/:id', authenticate, requireRole('admin'), (req, res) => {
   if (changes === 0) return res.status(404).json({ error: 'Order not found' })
   const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(req.params.id)
   res.json(order)
+})
+
+app.use((req, res) => {
+  res.status(404).json({ error: 'Not found' })
+})
+
+// Final error handler: always answer with JSON and never leak stack traces.
+// Express recognises it as an error handler because it takes four arguments.
+app.use((err, req, res, next) => {
+  if (err.type === 'entity.parse.failed') {
+    return res.status(400).json({ error: 'Malformed JSON body' })
+  }
+  if (err.type === 'entity.too.large') {
+    return res.status(413).json({ error: 'Request body too large' })
+  }
+  console.error(err)
+  return res.status(500).json({ error: 'Internal server error' })
 })
 
 if (require.main === module) {

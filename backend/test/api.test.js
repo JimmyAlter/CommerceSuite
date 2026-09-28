@@ -42,8 +42,11 @@ const login = async (email) => {
   assert.equal(res.status, 200, `login ${email}`)
   return res.body.token
 }
-const adminToken = () => login('admin@commercesuite.dev')
-const buyerToken = () => login('buyer@commercesuite.dev')
+// Login is rate limited (20/min per client), so each role signs in once per run.
+const tokens = {}
+const cachedLogin = async (email) => (tokens[email] ??= await login(email))
+const adminToken = () => cachedLogin('admin@commercesuite.dev')
+const buyerToken = () => cachedLogin('buyer@commercesuite.dev')
 
 const shipping = { name: 'Receiving Dock', address: '100 Example Ave', city: 'Springfield', country: 'US' }
 const productById = (id) => db.prepare('SELECT * FROM products WHERE id = ?').get(id)
@@ -142,4 +145,29 @@ test('product creation validates prices, stock and duplicate SKUs', async () => 
     const res = await request('POST', '/api/products', { token: admin, body: { ...valid, sku: `SKU-${Math.random()}`, ...bad } })
     assert.equal(res.status, 400, JSON.stringify(bad))
   }
+})
+
+test('login rejects non-string credentials with a JSON 400', async () => {
+  for (const body of [{ email: { a: 1 }, password: 'demo123' }, { email: 'buyer@commercesuite.dev', password: 123 }, { email: ['x'], password: ['y'] }, {}]) {
+    const res = await request('POST', '/api/auth/login', { body })
+    assert.equal(res.status, 400, JSON.stringify(body))
+    assert.equal(typeof res.body.error, 'string')
+  }
+})
+
+test('malformed JSON is a 400 with a JSON body, not a stack trace', async () => {
+  const res = await fetch(`${baseUrl}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{"email": ',
+  })
+  assert.equal(res.status, 400)
+  assert.match(res.headers.get('content-type'), /application\/json/)
+  assert.deepEqual(await res.json(), { error: 'Malformed JSON body' })
+})
+
+test('unknown routes return a JSON 404', async () => {
+  const res = await request('GET', '/api/does-not-exist')
+  assert.equal(res.status, 404)
+  assert.deepEqual(res.body, { error: 'Not found' })
 })
