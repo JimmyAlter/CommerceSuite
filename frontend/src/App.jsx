@@ -5,7 +5,6 @@ import { NavLink, FeatureCard } from './components/FeatureCard'
 import { ProductCard } from './components/ProductCard'
 import { LoginModal } from './components/LoginModal'
 import { CheckoutModal } from './components/CheckoutModal'
-import { isDemoMode, mockFetchJson } from './mockApi'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4100'
 
@@ -13,9 +12,6 @@ const formatCurrency = (value) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value / 100)
 
 const fetchJson = async (path, options = {}) => {
-  if (isDemoMode()) {
-    return mockFetchJson(path, options)
-  }
   const response = await fetch(`${API_URL}${path}`, {
     headers: { 'Content-Type': 'application/json', ...options.headers },
     ...options,
@@ -251,19 +247,7 @@ function App() {
           </nav>
         </div>
         <div className="nav-right">
-          {isDemoMode() ? (
-            <div className="status-chip status-chip--demo" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 8px', borderRadius: '4px', background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.2)', color: '#f59e0b', fontSize: '12px', fontWeight: '500' }}>
-              <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#f59e0b' }} />
-              Demo (Local)
-            </div>
-          ) : (
-            <div className="status-chip status-chip--live" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 8px', borderRadius: '4px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.2)', color: '#10b981', fontSize: '12px', fontWeight: '500' }}>
-              <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981' }} />
-              Live (API)
-            </div>
-          )}
           <button className="btn btn-ghost btn-sm" onClick={openCheckout}>
-
             <Icon d={icons.cart} size={15} />
             Cart{cartCount > 0 && ` (${cartCount})`}
           </button>
@@ -338,16 +322,6 @@ function App() {
       </div>
 
       {/* ── Banners ── */}
-      {isDemoMode() && (
-        <div className="banner info" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '12px 16px', background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.2)', color: '#3b82f6', borderRadius: '6px', margin: '16px auto', maxWidth: '1200px' }}>
-          <span style={{ fontSize: '14px' }}>
-            🌐 <strong>Demo Mode:</strong> Running entirely client-side using LocalStorage database. Any additions/modifications will persist locally in your browser.
-          </span>
-          <button className="btn btn-ghost btn-sm" style={{ border: '1px solid rgba(59, 130, 246, 0.3)', color: '#3b82f6', background: 'transparent', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer' }} onClick={() => { localStorage.clear(); window.location.reload(); }}>
-            Reset Data
-          </button>
-        </div>
-      )}
       {status && <div className="banner success">{status}</div>}
       {error && <div className="banner error">{error}</div>}
       {toast && <div className="toast">{toast}</div>}

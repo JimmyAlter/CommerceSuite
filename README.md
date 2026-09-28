@@ -40,8 +40,6 @@ React 19 and Vite (frontend) · Node.js, Express and better-sqlite3 (API) · JWT
 React (Vercel) ──► Express API (Render) ──► SQLite
 ```
 
-The frontend also has a browser-only mock API (`frontend/src/mockApi.js`). It is used when `VITE_API_URL` is not set and the app runs on `*.vercel.app` or with `VITE_DEMO_MODE=true`.
-
 ## Running it locally
 
 ```bash
