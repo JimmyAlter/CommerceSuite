@@ -15,14 +15,18 @@ if (!fs.existsSync(dir)) {
 
 const db = new Database(dbPath)
 db.pragma('journal_mode = WAL')
+db.pragma('foreign_keys = ON')
 
+// CREATE TABLE IF NOT EXISTS leaves an existing database untouched, so the
+// constraints below only apply to databases created with this schema. An older
+// file still opens and works; delete it (or point DB_PATH elsewhere) to get them.
 const init = () => {
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       email TEXT NOT NULL UNIQUE,
-      role TEXT NOT NULL,
+      role TEXT NOT NULL CHECK (role IN ('admin', 'customer')),
       password_hash TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -31,20 +35,20 @@ const init = () => {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       description TEXT NOT NULL,
-      price_cents INTEGER NOT NULL,
+      price_cents INTEGER NOT NULL CHECK (price_cents > 0),
       sku TEXT NOT NULL UNIQUE,
-      inventory INTEGER NOT NULL,
-      status TEXT NOT NULL,
+      inventory INTEGER NOT NULL CHECK (inventory >= 0),
+      status TEXT NOT NULL CHECK (status IN ('active', 'inactive')),
       category TEXT NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS orders (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       order_number TEXT NOT NULL UNIQUE,
-      user_id INTEGER NOT NULL,
-      status TEXT NOT NULL,
-      total_cents INTEGER NOT NULL,
-      payment_method TEXT NOT NULL,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      status TEXT NOT NULL CHECK (status IN ('processing', 'fulfilled', 'cancelled')),
+      total_cents INTEGER NOT NULL CHECK (total_cents >= 0),
+      payment_method TEXT NOT NULL CHECK (payment_method IN ('card', 'invoice', 'wire')),
       shipping_name TEXT NOT NULL,
       shipping_address TEXT NOT NULL,
       shipping_city TEXT NOT NULL,
@@ -54,12 +58,15 @@ const init = () => {
 
     CREATE TABLE IF NOT EXISTS order_items (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      order_id INTEGER NOT NULL,
-      product_id INTEGER NOT NULL,
+      order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+      product_id INTEGER NOT NULL REFERENCES products(id),
       product_name TEXT NOT NULL,
-      quantity INTEGER NOT NULL,
-      unit_price_cents INTEGER NOT NULL
+      quantity INTEGER NOT NULL CHECK (quantity > 0),
+      unit_price_cents INTEGER NOT NULL CHECK (unit_price_cents > 0)
     );
+
+    CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id);
+    CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id);
   `)
 }
 
