@@ -3,6 +3,7 @@ const assert = require('node:assert/strict')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
+const jwt = require('jsonwebtoken')
 
 // Each run gets its own throwaway SQLite file, seeded by the server on load.
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'commercesuite-'))
@@ -51,6 +52,12 @@ const buyerToken = () => cachedLogin('buyer@commercesuite.dev')
 const shipping = { name: 'Receiving Dock', address: '100 Example Ave', city: 'Springfield', country: 'US' }
 const productById = (id) => db.prepare('SELECT * FROM products WHERE id = ?').get(id)
 const firstProduct = () => db.prepare("SELECT * FROM products WHERE status = 'active' AND inventory > 5 ORDER BY id LIMIT 1").get()
+
+test('health check responds without auth', async () => {
+  const res = await request('GET', '/api/health')
+  assert.equal(res.status, 200)
+  assert.deepEqual(res.body, { status: 'ok' })
+})
 
 test('catalog is public and only lists active products', async () => {
   const res = await request('GET', '/api/products')
@@ -182,7 +189,7 @@ test('product creation validates prices, stock and duplicate SKUs', async () => 
 })
 
 test('login rejects non-string credentials with a JSON 400', async () => {
-  for (const body of [{ email: { a: 1 }, password: 'demo123' }, { email: 'buyer@commercesuite.dev', password: 123 }, { email: ['x'], password: ['y'] }, {}]) {
+  for (const body of [{ email: { a: 1 }, password: 'demo123' }, { email: 'buyer@commercesuite.dev', password: 123 }, { email: ['x'], password: ['y'] }, { email: 'a'.repeat(201), password: 'demo123' }, {}]) {
     const res = await request('POST', '/api/auth/login', { body })
     assert.equal(res.status, 400, JSON.stringify(body))
     assert.equal(typeof res.body.error, 'string')
@@ -222,4 +229,74 @@ test('local dev origins are allowed outside production and echoed back', async (
   const res = await fetch(`${baseUrl}/api/products`, { headers: { Origin: 'http://localhost:5173' } })
   assert.equal(res.status, 200)
   assert.equal(res.headers.get('access-control-allow-origin'), 'http://localhost:5173')
+})
+
+const rawGet = async (url, authorization) => {
+  const res = await fetch(baseUrl + url, { headers: { Authorization: authorization } })
+  return { status: res.status, body: await res.json() }
+}
+
+test('invalid, expired, unsigned and non-Bearer tokens are all 401', async () => {
+  const admin = await adminToken()
+  const claims = { sub: 1, name: 'Store Admin', role: 'admin' }
+  const expired = jwt.sign({ ...claims, exp: Math.floor(Date.now() / 1000) - 60 }, 'test-secret')
+  const wrongSecret = jwt.sign(claims, 'not-the-secret')
+  const unsigned = jwt.sign(claims, null, { algorithm: 'none' })
+  const hs512 = jwt.sign(claims, 'test-secret', { algorithm: 'HS512' })
+
+  const cases = {
+    garbage: 'Bearer not-a-jwt',
+    expired: `Bearer ${expired}`,
+    wrongSecret: `Bearer ${wrongSecret}`,
+    algNone: `Bearer ${unsigned}`,
+    otherAlgorithm: `Bearer ${hs512}`,
+    basicScheme: `Basic ${admin}`,
+    noScheme: admin,
+    extraParts: `Bearer ${admin} extra`,
+  }
+  for (const [name, authorization] of Object.entries(cases)) {
+    const res = await rawGet('/api/orders', authorization)
+    assert.equal(res.status, 401, name)
+    assert.equal(typeof res.body.error, 'string', name)
+  }
+  assert.equal((await rawGet('/api/orders', `Bearer ${admin}`)).status, 200, 'valid token still works')
+})
+
+test('unknown emails and wrong passwords get the same 401', async () => {
+  const unknown = await request('POST', '/api/auth/login', { body: { email: 'nobody@commercesuite.dev', password: 'demo123' } })
+  const wrong = await request('POST', '/api/auth/login', { body: { email: 'buyer@commercesuite.dev', password: 'nope' } })
+  assert.equal(unknown.status, 401)
+  assert.deepEqual(unknown.body, wrong.body)
+})
+
+test('orders are limited to 50 lines', async () => {
+  const buyer = await buyerToken()
+  const product = firstProduct()
+  const items = Array.from({ length: 51 }, () => ({ product_id: product.id, quantity: 1 }))
+  const res = await request('POST', '/api/orders', { token: buyer, body: { items, shipping } })
+  assert.equal(res.status, 400)
+  assert.match(res.body.error, /at most 50 lines/)
+  assert.equal(productById(product.id).inventory, product.inventory)
+})
+
+test('order and product payloads with the wrong types are 400s', async () => {
+  const buyer = await buyerToken()
+  const admin = await adminToken()
+  const product = firstProduct()
+  const orderBodies = [
+    { items: 'all of them', shipping },
+    { items: [null], shipping },
+    { items: [{ product_id: '1', quantity: 1 }], shipping },
+    { items: [{ product_id: product.id, quantity: 1 }], shipping: 'dock 4' },
+    { items: [{ product_id: product.id, quantity: 1 }], shipping: { ...shipping, name: { first: 'a' } } },
+    { items: [{ product_id: product.id, quantity: 1 }], shipping: { ...shipping, city: 'x'.repeat(201) } },
+    { items: [{ product_id: product.id, quantity: 1 }], shipping, payment_method: ['card'] },
+  ]
+  for (const body of orderBodies) {
+    assert.equal((await request('POST', '/api/orders', { token: buyer, body })).status, 400, JSON.stringify(body))
+  }
+  const valid = { name: 'Cable', description: 'USB-C cable', price_cents: 900, sku: 'CBL-1', category: 'Accessories' }
+  for (const bad of [{ name: 42 }, { description: ['x'] }, { sku: null }, { category: { a: 1 } }, { inventory: '10' }]) {
+    assert.equal((await request('POST', '/api/products', { token: admin, body: { ...valid, ...bad } })).status, 400, JSON.stringify(bad))
+  }
 })

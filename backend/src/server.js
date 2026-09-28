@@ -19,6 +19,9 @@ if (isProduction && (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'dev_
 }
 
 const jwtSecret = process.env.JWT_SECRET || 'dev_secret_change_me'
+const JWT_ALGORITHM = 'HS256'
+// Compared against when the email is unknown, so both failure paths cost one bcrypt check.
+const DUMMY_PASSWORD_HASH = bcrypt.hashSync(crypto.randomBytes(16).toString('hex'), 10)
 
 const MAX_ORDER_LINES = 50
 const MAX_QUANTITY = 999
@@ -69,10 +72,12 @@ const authLimiter = rateLimit({
 
 const authenticate = (req, res, next) => {
   const header = req.headers.authorization || ''
-  const [, token] = header.split(' ')
-  if (!token) return res.status(401).json({ error: 'Missing token' })
+  const [scheme, token, ...extra] = header.split(' ')
+  if (scheme !== 'Bearer' || !token || extra.length > 0) {
+    return res.status(401).json({ error: 'Missing token' })
+  }
   try {
-    req.user = jwt.verify(token, jwtSecret)
+    req.user = jwt.verify(token, jwtSecret, { algorithms: [JWT_ALGORITHM] })
     return next()
   } catch (err) {
     return res.status(401).json({ error: 'Invalid token' })
@@ -103,14 +108,15 @@ app.post('/api/auth/login', authLimiter, (req, res) => {
     .prepare('SELECT id, name, email, role, password_hash FROM users WHERE email = ?')
     .get(email)
 
-  if (!user || !bcrypt.compareSync(password, user.password_hash)) {
+  const passwordOk = bcrypt.compareSync(password, user ? user.password_hash : DUMMY_PASSWORD_HASH)
+  if (!user || !passwordOk) {
     return res.status(401).json({ error: 'Invalid credentials' })
   }
 
   const token = jwt.sign(
     { sub: user.id, name: user.name, role: user.role },
     jwtSecret,
-    { expiresIn: '8h' }
+    { algorithm: JWT_ALGORITHM, expiresIn: '8h' }
   )
 
   return res.json({
