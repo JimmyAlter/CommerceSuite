@@ -5,23 +5,10 @@ import { NavLink, FeatureCard } from './components/FeatureCard'
 import { ProductCard } from './components/ProductCard'
 import { LoginModal } from './components/LoginModal'
 import { CheckoutModal } from './components/CheckoutModal'
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4100'
+import { authHeaders, fetchJson } from './api'
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value / 100)
-
-const fetchJson = async (path, options = {}) => {
-  const response = await fetch(`${API_URL}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...options.headers },
-    ...options,
-  })
-  if (!response.ok) {
-    const message = await response.text()
-    throw new Error(message || 'Request failed')
-  }
-  return response.json()
-}
 
 function App() {
   const [products, setProducts] = useState([])
@@ -44,17 +31,19 @@ function App() {
 
   /* ── Data loading ── */
 
-  useEffect(() => {
-    setLoadingProducts(true)
+  const loadProducts = () =>
     fetchJson('/api/products')
       .then(setProducts)
-      .catch(() => setError('Unable to load catalog'))
+      .catch(() => setError('Unable to load catalog. The API may be waking up; refresh in a minute.'))
       .finally(() => setLoadingProducts(false))
+
+  useEffect(() => {
+    loadProducts()
   }, [])
 
   useEffect(() => {
     if (user?.role === 'admin' && token) {
-      fetchJson('/api/orders', { headers: { Authorization: `Bearer ${token}` } })
+      fetchJson('/api/orders', { headers: authHeaders(token) })
         .then(setOrders)
         .catch(() => setError('Unable to load orders'))
     }
@@ -160,8 +149,8 @@ function App() {
       setToken(data.token)
       setUser(data.user)
       setLoginOpen(false)
-    } catch {
-      setError('Invalid credentials. Try the demo account.')
+    } catch (err) {
+      setError(err.status === 401 ? 'Invalid credentials. Try the demo account.' : err.message)
     } finally {
       setBusy(false)
     }
@@ -175,13 +164,21 @@ function App() {
     setOrders([])
   }
 
+  // The token is kept for 8 hours; after that the API answers 401 and we ask for a fresh sign-in.
+  const expireSession = () => {
+    handleLogout()
+    setCheckoutOpen(false)
+    setError('Your session has expired. Please sign in again.')
+    setLoginOpen(true)
+  }
+
   const handleCheckout = async ({ shipping, payment_method }) => {
     try {
       setBusy(true)
       setError('')
       const data = await fetchJson('/api/orders', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: authHeaders(token),
         body: JSON.stringify({
           items: cart.map((item) => ({ product_id: item.id, quantity: item.quantity })),
           shipping,
@@ -192,8 +189,10 @@ function App() {
       setToast('Order submitted successfully')
       setCart([])
       setCheckoutOpen(false)
-    } catch {
-      setError('Unable to place order. Please try again.')
+      loadProducts()
+    } catch (err) {
+      if (err.status === 401) return expireSession()
+      setError(`Unable to place order: ${err.message}`)
     } finally {
       setBusy(false)
     }
@@ -204,13 +203,14 @@ function App() {
       setBusy(true)
       const updated = await fetchJson(`/api/orders/${orderId}`, {
         method: 'PATCH',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: authHeaders(token),
         body: JSON.stringify({ status: newStatus }),
       })
       setOrders((prev) => prev.map((order) => (order.id === orderId ? updated : order)))
       setToast(`Order ${updated.order_number} updated to ${updated.status}`)
-    } catch {
-      setError('Unable to update order status')
+    } catch (err) {
+      if (err.status === 401) return expireSession()
+      setError(`Unable to update order status: ${err.message}`)
     } finally {
       setBusy(false)
     }
@@ -634,6 +634,7 @@ function App() {
           onClose={() => setCheckoutOpen(false)}
           cart={cart}
           onSubmit={handleCheckout}
+          error={error}
           busy={busy}
         />
       )}

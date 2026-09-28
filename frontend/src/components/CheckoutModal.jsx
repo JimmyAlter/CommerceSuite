@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { Icon } from './Icon'
 import { icons } from './iconPaths'
 
-export const CheckoutModal = ({ open, onClose, cart, onSubmit, busy }) => {
+export const CheckoutModal = ({ open, onClose, cart, onSubmit, error, busy }) => {
   const [shipping, setShipping] = useState({
     name: '', address: '', city: '', country: '',
   })
@@ -51,6 +51,7 @@ export const CheckoutModal = ({ open, onClose, cart, onSubmit, busy }) => {
               <option value="wire">Wire transfer</option>
             </select>
           </div>
+          {error && <p className="form-error">{error}</p>}
           <button className="btn btn-primary" type="submit" disabled={busy || cart.length === 0} style={{ width: '100%', marginTop: 4 }}>
             {busy ? 'Processing…' : 'Place order'}
           </button>
