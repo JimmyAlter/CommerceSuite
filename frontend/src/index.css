@@ -1212,16 +1212,31 @@ img { max-width: 100%; display: block; }
 }
 
 @media (max-width: 640px) {
+  /* One compact row: the page is a single scroll and the footer repeats the
+     section links, so the in-page nav links are dropped here. */
   .nav {
-    height: auto;
-    padding: 16px;
-    flex-direction: column;
+    height: 60px;
+    padding: 0 16px;
     gap: 12px;
   }
 
-  .nav-links {
-    flex-wrap: wrap;
-    justify-content: center;
+  .nav-links { display: none; }
+
+  .brand span { display: none; }
+
+  .nav-right { gap: 8px; min-width: 0; }
+
+  .user-chip {
+    padding: 4px 4px 4px 12px;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .user-chip span {
+    max-width: 110px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .grid,

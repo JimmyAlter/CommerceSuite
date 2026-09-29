@@ -84,12 +84,9 @@ test('an admin can cancel a processing order and the stock comes back', async ({
   await expect.poll(() => stockOf(card)).toBe(router.inventory)
 })
 
-test('on a 375px phone the first screen does not scroll sideways', async ({ page }) => {
-  await page.setViewportSize({ width: 375, height: 812 })
-  await page.goto('/')
-  await expect(page.locator('.product-card').first()).toBeVisible()
-
-  const overflow = await page.evaluate(() => {
+// Returns elements on the first screen that stick out past the viewport.
+const firstScreenOverflow = (page) =>
+  page.evaluate(() => {
     const width = document.documentElement.clientWidth
     const offenders = [...document.querySelectorAll('body *')]
       .filter((el) => {
@@ -99,6 +96,23 @@ test('on a 375px phone the first screen does not scroll sideways', async ({ page
       .map((el) => `${el.tagName.toLowerCase()}.${el.className}`)
     return { scrollWidth: document.documentElement.scrollWidth, width, offenders }
   })
+
+test('on a 375px phone the header stays compact and nothing scrolls sideways', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 })
+  await page.goto('/')
+  await expect(page.locator('.product-card').first()).toBeVisible()
+
+  const header = page.locator('header.nav')
+  expect((await header.boundingBox()).height).toBeLessThan(90)
+  let overflow = await firstScreenOverflow(page)
+  expect(overflow.offenders).toEqual([])
+  expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.width)
+
+  // Signed in, the name chip and sign-out button must still fit on the one row.
+  await signIn(page, 'buyer')
+  expect((await header.boundingBox()).height).toBeLessThan(90)
+  await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible()
+  overflow = await firstScreenOverflow(page)
   expect(overflow.offenders).toEqual([])
   expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.width)
 })

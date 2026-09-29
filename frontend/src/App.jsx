@@ -199,7 +199,7 @@ function App() {
       <header className="nav">
         <div className="nav-left">
           <div className="brand">
-            <div className="brand-icon">NT</div>
+            <div className="brand-icon" title="NovaTech Supply">NT</div>
             <span>NovaTech Supply</span>
           </div>
           <nav className="nav-links">
