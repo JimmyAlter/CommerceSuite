@@ -65,7 +65,7 @@ app.use(express.json({ limit: '200kb' }))
 
 const authLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 20,
+  limit: 20,
   standardHeaders: true,
   legacyHeaders: false,
 })

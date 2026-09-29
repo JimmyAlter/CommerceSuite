@@ -70,7 +70,7 @@ Request and response bodies are JSON. Errors are always `{ "error": "message" }`
 
 ## Running it locally
 
-Requires Node.js 20.19 or newer.
+Requires Node.js 22 or newer.
 
 ```bash
 cd backend
@@ -114,7 +114,7 @@ The backend node:test suite starts the API against a throwaway SQLite file and c
 
 The frontend has vitest tests for the `fetchJson` helper: headers are merged so `Content-Type` survives an `Authorization` header, and server error messages reach the UI.
 
-CI runs the backend suite with coverage on Node 20 and 22, plus the frontend lint, tests and build. Dependabot opens weekly updates for both packages and the workflow actions.
+CI runs the backend suite with coverage on Node 22 and 24, plus the frontend lint, tests and build. Dependabot opens weekly updates for both packages and the workflow actions.
 
 ## Security notes
 
