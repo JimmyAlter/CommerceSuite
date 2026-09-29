@@ -13,6 +13,10 @@ updates:
         update-types: [version-update:semver-major]
       - dependency-name: dotenv
         update-types: [version-update:semver-major]
+      # better-sqlite3 13 has no prebuilt binaries for every platform, so npm ci
+      # falls back to node-gyp and fails on machines without Python/C++ build tools.
+      - dependency-name: better-sqlite3
+        update-types: [version-update:semver-major]
 
   - package-ecosystem: npm
     directory: /frontend

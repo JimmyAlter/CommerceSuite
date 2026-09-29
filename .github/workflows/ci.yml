@@ -27,6 +27,23 @@ jobs:
       - run: npm ci
       - run: npm run test:coverage
 
+  # Contributors on Windows usually have no Python or C++ build tools, so native
+  # modules must install from prebuilt binaries.
+  backend-windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm test
+
   frontend:
     runs-on: ubuntu-latest
     defaults:
