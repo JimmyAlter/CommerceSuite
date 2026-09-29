@@ -4,6 +4,7 @@ const fs = require('fs')
 const os = require('os')
 const path = require('path')
 const jwt = require('jsonwebtoken')
+const bcrypt = require('bcryptjs')
 
 // Each run gets its own throwaway SQLite file, seeded by the server on load.
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'commercesuite-'))
@@ -356,4 +357,22 @@ test('login email is case-insensitive', async () => {
   const res = await request('POST', '/api/auth/login', { body: { email: 'Buyer@CommerceSuite.DEV', password: 'demo123' } })
   assert.equal(res.status, 200)
   assert.equal(res.body.user.email, 'buyer@commercesuite.dev')
+})
+
+test('role changes and deleted users take effect without a new login', async () => {
+  const hash = bcrypt.hashSync('temp-pass', 4)
+  const { lastInsertRowid: id } = db
+    .prepare('INSERT INTO users (name, email, role, password_hash) VALUES (?, ?, ?, ?)')
+    .run('Temp Admin', 'temp-admin@commercesuite.dev', 'admin', hash)
+  const login = await request('POST', '/api/auth/login', { body: { email: 'temp-admin@commercesuite.dev', password: 'temp-pass' } })
+  assert.equal(login.status, 200)
+  const token = login.body.token
+  assert.equal((await request('GET', '/api/orders', { token })).status, 200)
+
+  db.prepare("UPDATE users SET role = 'customer' WHERE id = ?").run(id)
+  assert.equal((await request('GET', '/api/orders', { token })).status, 403, 'demoted admin')
+  assert.equal((await request('GET', '/api/orders/mine', { token })).status, 200, 'still a valid buyer')
+
+  db.prepare('DELETE FROM users WHERE id = ?').run(id)
+  assert.equal((await request('GET', '/api/orders/mine', { token })).status, 401, 'deleted user')
 })

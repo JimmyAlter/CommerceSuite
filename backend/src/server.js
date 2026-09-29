@@ -76,12 +76,18 @@ const authenticate = (req, res, next) => {
   if (scheme !== 'Bearer' || !token || extra.length > 0) {
     return res.status(401).json({ error: 'Missing token' })
   }
+  let claims
   try {
-    req.user = jwt.verify(token, jwtSecret, { algorithms: [JWT_ALGORITHM] })
-    return next()
+    claims = jwt.verify(token, jwtSecret, { algorithms: [JWT_ALGORITHM] })
   } catch (err) {
     return res.status(401).json({ error: 'Invalid token' })
   }
+  // The token only identifies the user. Name and role are read from the database on
+  // every request, so a deleted or demoted user loses access immediately.
+  const user = db.prepare('SELECT id, name, role FROM users WHERE id = ?').get(claims.sub)
+  if (!user) return res.status(401).json({ error: 'Invalid token' })
+  req.user = { sub: user.id, name: user.name, role: user.role }
+  return next()
 }
 
 const requireRole = (role) => (req, res, next) => {
