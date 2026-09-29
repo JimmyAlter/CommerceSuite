@@ -4,11 +4,34 @@ updates:
     directory: /backend
     schedule:
       interval: weekly
+    groups:
+      backend-minor-and-patch:
+        update-types: [minor, patch]
+    ignore:
+      # Express 5 changes routing and error handling; migrate on purpose, not via a bot PR.
+      - dependency-name: express
+        update-types: [version-update:semver-major]
+      - dependency-name: dotenv
+        update-types: [version-update:semver-major]
+
   - package-ecosystem: npm
     directory: /frontend
     schedule:
       interval: weekly
+    groups:
+      frontend-minor-and-patch:
+        update-types: [minor, patch]
+    ignore:
+      # ESLint 10 needs a flat-config and plugin review.
+      - dependency-name: eslint
+        update-types: [version-update:semver-major]
+      - dependency-name: "@eslint/js"
+        update-types: [version-update:semver-major]
+
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
