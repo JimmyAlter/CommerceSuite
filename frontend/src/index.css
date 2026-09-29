@@ -100,7 +100,6 @@ img { max-width: 100%; display: block; }
   display: flex;
   flex-direction: column;
   position: relative;
-  overflow-x: hidden;
 }
 
 /* --- Navigation --- */
@@ -1173,7 +1172,8 @@ img { max-width: 100%; display: block; }
   .nav { padding: 0 24px; }
 
   .hero {
-    grid-template-columns: 1fr;
+    /* minmax(0, 1fr) lets the column shrink below its content width. */
+    grid-template-columns: minmax(0, 1fr);
     padding: 48px 24px;
   }
 
@@ -1240,6 +1240,9 @@ img { max-width: 100%; display: block; }
   }
 
   .hero h1 { font-size: 32px; }
+  .hero-card { padding: 20px; }
+  .hero-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hero-metric:last-child { grid-column: 1 / -1; }
   .hero-actions { flex-direction: column; }
 
   .banner { margin: 0 16px; }
