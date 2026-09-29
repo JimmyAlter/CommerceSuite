@@ -1,5 +1,3 @@
-import React from 'react'
-
 export const Icon = ({ d, size = 18, className = '' }) => (
   <svg
     width={size}
@@ -11,6 +9,8 @@ export const Icon = ({ d, size = 18, className = '' }) => (
     strokeLinecap="round"
     strokeLinejoin="round"
     className={className}
+    aria-hidden="true"
+    focusable="false"
   >
     <path d={d} />
   </svg>

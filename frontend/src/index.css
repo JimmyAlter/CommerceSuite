@@ -858,6 +858,23 @@ img { max-width: 100%; display: block; }
   font-size: 12px;
 }
 
+.order-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.table--admin .table-row {
+  grid-template-columns: 1.6fr 1fr 0.9fr 0.9fr 1.2fr 1.4fr;
+}
+
+.demo-accounts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
 /* --- Utilities --- */
 .mono {
   font-family: var(--font-mono);
@@ -1230,8 +1247,9 @@ img { max-width: 100%; display: block; }
     text-align: center;
   }
 
-  .table-row {
-    grid-template-columns: 1fr;
+  .table-row,
+  .table--admin .table-row {
+    grid-template-columns: minmax(0, 1fr);
     gap: 6px;
   }
 

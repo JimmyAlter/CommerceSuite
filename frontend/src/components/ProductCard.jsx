@@ -1,9 +1,6 @@
-import React from 'react'
 import { Icon } from './Icon'
 import { icons } from './iconPaths'
-
-const formatCurrency = (value) =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value / 100)
+import { formatCurrency } from '../format'
 
 const getCategoryClass = (category) => (category || '').toLowerCase().replace(/\s+/g, '')
 
