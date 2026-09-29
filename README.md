@@ -103,6 +103,7 @@ The frontend reads `VITE_API_URL` (default `http://localhost:4100`).
 ```bash
 cd backend && npm test          # or: npm run test:coverage
 cd frontend && npm test && npm run lint
+cd frontend && npx playwright install chromium && npm run test:e2e   # browser smoke tests
 ```
 
 The backend node:test suite starts the API against a throwaway SQLite file and covers:
@@ -117,7 +118,9 @@ The backend node:test suite starts the API against a throwaway SQLite file and c
 
 The frontend has vitest tests for the `fetchJson` helper (headers are merged so `Content-Type` survives an `Authorization` header, and server error messages reach the UI), for SQLite UTC timestamps being shown in local time, and for a corrupt or blocked `localStorage` leaving the user signed out instead of crashing the page.
 
-CI runs the backend suite with coverage on Node 22 and 24, plus the frontend lint, tests and build. Dependabot opens weekly grouped minor/patch updates for both packages and the workflow actions; majors that need a deliberate migration (Express 5, ESLint 10, dotenv) are ignored.
+The Playwright smoke tests (`frontend/e2e/`) start the real API on a throwaway SQLite file and the Vite dev server, then check in Chromium that a buyer can sign in with the demo button, check out and see the order in My Orders; that an admin can cancel a processing order and its stock returns to the catalog; and that the first screen at 375px has no horizontal overflow.
+
+CI runs the backend suite with coverage on Node 22 and 24, the frontend lint, tests and build, and the Playwright smoke tests (traces are uploaded when they fail). Dependabot opens weekly grouped minor/patch updates for both packages and the workflow actions; majors that need a deliberate migration (Express 5, ESLint 10, dotenv) are ignored.
 
 ## Security notes
 
