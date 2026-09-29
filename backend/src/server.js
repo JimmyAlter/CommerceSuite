@@ -245,20 +245,25 @@ app.post('/api/orders', authenticate, (req, res) => {
   res.status(201).json(order)
 })
 
-app.get('/api/orders', authenticate, requireRole('admin'), (req, res) => {
-  const orders = db.prepare('SELECT * FROM orders ORDER BY created_at DESC').all()
-  res.json(orders)
-})
+// Orders are returned with the buyer's name and their line items.
+const ORDER_SELECT = `SELECT orders.*, users.name AS buyer_name
+  FROM orders JOIN users ON users.id = orders.user_id`
+const ORDER_SORT = 'ORDER BY orders.created_at DESC, orders.id DESC'
 
-// Any signed-in user can list their own orders, with line items.
-app.get('/api/orders/mine', authenticate, (req, res) => {
-  const orders = db
-    .prepare('SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC, id DESC')
-    .all(req.user.sub)
+const withItems = (orders) => {
   const getItems = db.prepare(
     'SELECT product_id, product_name, quantity, unit_price_cents FROM order_items WHERE order_id = ? ORDER BY id'
   )
-  res.json(orders.map((order) => ({ ...order, items: getItems.all(order.id) })))
+  return orders.map((order) => ({ ...order, items: getItems.all(order.id) }))
+}
+
+app.get('/api/orders', authenticate, requireRole('admin'), (req, res) => {
+  res.json(withItems(db.prepare(`${ORDER_SELECT} ${ORDER_SORT}`).all()))
+})
+
+// Any signed-in user can list their own orders.
+app.get('/api/orders/mine', authenticate, (req, res) => {
+  res.json(withItems(db.prepare(`${ORDER_SELECT} WHERE orders.user_id = ? ${ORDER_SORT}`).all(req.user.sub)))
 })
 
 app.patch('/api/orders/:id', authenticate, requireRole('admin'), (req, res) => {
@@ -294,7 +299,7 @@ app.patch('/api/orders/:id', authenticate, requireRole('admin'), (req, res) => {
     if (err instanceof OrderError) return res.status(err.status).json({ error: err.message })
     throw err
   }
-  res.json(db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId))
+  res.json(withItems([db.prepare(`${ORDER_SELECT} WHERE orders.id = ?`).get(orderId)])[0])
 })
 
 app.use((req, res) => {

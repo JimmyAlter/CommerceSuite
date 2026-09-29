@@ -376,3 +376,17 @@ test('role changes and deleted users take effect without a new login', async () 
   db.prepare('DELETE FROM users WHERE id = ?').run(id)
   assert.equal((await request('GET', '/api/orders/mine', { token })).status, 401, 'deleted user')
 })
+
+test('the admin order list and status updates include the buyer and line items', async () => {
+  const { order, product } = await placeOrder(2)
+  const list = await request('GET', '/api/orders', { token: await adminToken() })
+  assert.equal(list.status, 200)
+  const listed = list.body.find((o) => o.id === order.id)
+  assert.equal(listed.buyer_name, 'Retail Buyer')
+  assert.deepEqual(listed.items, [
+    { product_id: product.id, product_name: product.name, quantity: 2, unit_price_cents: product.price_cents },
+  ])
+  const updated = await setStatus(order.id, 'fulfilled')
+  assert.equal(updated.body.buyer_name, 'Retail Buyer')
+  assert.equal(updated.body.items.length, 1)
+})
