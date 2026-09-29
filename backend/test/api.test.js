@@ -335,3 +335,19 @@ test('unexpected errors are a generic JSON 500', async (t) => {
   assert.equal(res.status, 500)
   assert.deepEqual(res.body, { error: 'Internal server error' })
 })
+
+test('inactive products cannot be ordered by id', async () => {
+  const admin = await adminToken()
+  const buyer = await buyerToken()
+  const created = await request('POST', '/api/products', {
+    token: admin,
+    body: { name: 'Retired Dock', description: 'No longer sold', price_cents: 5000, sku: 'RET-DOCK', inventory: 10, status: 'inactive', category: 'Accessories' },
+  })
+  assert.equal(created.status, 201)
+  const ordersBefore = db.prepare('SELECT COUNT(*) AS n FROM orders').get().n
+  const res = await request('POST', '/api/orders', { token: buyer, body: { items: [{ product_id: created.body.id, quantity: 1 }], shipping } })
+  assert.equal(res.status, 409)
+  assert.match(res.body.error, /Product is not available/)
+  assert.equal(productById(created.body.id).inventory, 10)
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM orders').get().n, ordersBefore)
+})

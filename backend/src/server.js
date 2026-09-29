@@ -197,7 +197,7 @@ app.post('/api/orders', authenticate, (req, res) => {
      VALUES (?, ?, ?, ?, ?)`
   )
 
-  const getProduct = db.prepare('SELECT id, name, price_cents, inventory FROM products WHERE id = ?')
+  const getProduct = db.prepare('SELECT id, name, price_cents, inventory, status FROM products WHERE id = ?')
 
   const placeOrder = db.transaction(() => {
     const info = insertOrder.run(
@@ -216,6 +216,7 @@ app.post('/api/orders', authenticate, (req, res) => {
     items.forEach(({ product_id, quantity }) => {
       const product = getProduct.get(product_id)
       if (!product) throw new OrderError(400, 'Invalid product')
+      if (product.status !== 'active') throw new OrderError(409, `Product is not available: ${product.name}`)
       if (product.inventory < quantity) throw new OrderError(409, `Insufficient inventory for ${product.name}`)
       totalCents += product.price_cents * quantity
       insertItem.run(orderId, product.id, product.name, quantity, product.price_cents)
