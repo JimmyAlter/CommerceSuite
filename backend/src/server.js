@@ -105,7 +105,7 @@ app.post('/api/auth/login', authLimiter, (req, res) => {
   }
 
   const user = db
-    .prepare('SELECT id, name, email, role, password_hash FROM users WHERE email = ?')
+    .prepare('SELECT id, name, email, role, password_hash FROM users WHERE email = ? COLLATE NOCASE')
     .get(email)
 
   const passwordOk = bcrypt.compareSync(password, user ? user.password_hash : DUMMY_PASSWORD_HASH)

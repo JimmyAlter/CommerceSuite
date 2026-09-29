@@ -351,3 +351,9 @@ test('inactive products cannot be ordered by id', async () => {
   assert.equal(productById(created.body.id).inventory, 10)
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM orders').get().n, ordersBefore)
 })
+
+test('login email is case-insensitive', async () => {
+  const res = await request('POST', '/api/auth/login', { body: { email: 'Buyer@CommerceSuite.DEV', password: 'demo123' } })
+  assert.equal(res.status, 200)
+  assert.equal(res.body.user.email, 'buyer@commercesuite.dev')
+})
